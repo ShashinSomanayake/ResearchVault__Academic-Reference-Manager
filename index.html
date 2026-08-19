@@ -1,0 +1,2400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ResearchVault — Academic Research Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- ═══════════════════════════════════════════════════════
+     FIREBASE v9 COMPAT CDN — replace the config object below
+     with your own Firebase project credentials.
+     ═══════════════════════════════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════ */
+:root {
+  --bg:          #090f1a;
+  --sidebar:     #0e1523;
+  --card:        #141e30;
+  --card-hover:  #192540;
+  --card-alt:    #111929;
+  --border:      #1f2d45;
+  --border-light:#2d4060;
+  --text:        #dde6f5;
+  --text-muted:  #7a94b5;
+  --text-dim:    #3d5473;
+  --accent:      #4f9cf9;
+  --accent-dim:  rgba(79,156,249,.12);
+  --accent-glow: rgba(79,156,249,.18);
+  --green:       #22c55e;
+  --green-dim:   rgba(34,197,94,.12);
+  --amber:       #f59e0b;
+  --amber-dim:   rgba(245,158,11,.12);
+  --red:         #f04a4a;
+  --red-dim:     rgba(240,74,74,.12);
+  --purple:      #a78bfa;
+  --mono:        'JetBrains Mono', monospace;
+  --sans:        'Inter', sans-serif;
+  --r:           8px;
+  --r-sm:        5px;
+  --sidebar-w:   228px;
+  --trans:       .15s ease;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px}
+button{font-family:var(--sans);cursor:pointer;border:none;background:none}
+input,textarea,select{font-family:var(--sans);background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 10px;font-size:13px;width:100%;outline:none;transition:border-color var(--trans)}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:70px;line-height:1.5}
+select option{background:var(--sidebar)}
+label{font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;font-weight:500}
+h2{font-size:18px;font-weight:700;color:var(--text)}
+h3{font-size:15px;font-weight:600;color:var(--text)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── LAYOUT ── */
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* ── AUTH SCREEN ── */
+.auth-screen{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;align-items:center;justify-content:center}
+.auth-screen.hidden{display:none}
+.auth-card{background:var(--sidebar);border:1px solid var(--border);border-radius:var(--r);padding:40px;width:400px;max-width:95vw}
+.auth-logo{font-size:32px;margin-bottom:6px;text-align:center}
+.auth-title{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:28px}
+.auth-tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.auth-tab{flex:1;text-align:center;padding:9px;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all var(--trans)}
+.auth-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.auth-divider{text-align:center;font-size:12px;color:var(--text-dim);margin:14px 0;position:relative}
+.auth-divider::before,.auth-divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:var(--border)}
+.auth-divider::before{left:0}.auth-divider::after{right:0}
+.btn-google{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:9px;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;transition:all var(--trans)}
+.btn-google:hover{border-color:var(--accent);background:var(--card-hover)}
+.auth-error{background:var(--red-dim);border:1px solid rgba(240,74,74,.3);border-radius:var(--r-sm);padding:8px 12px;font-size:12px;color:var(--red);margin-top:10px}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sidebar-w);background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sidebar-brand{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.brand-name{font-size:15px;font-weight:700;letter-spacing:.3px}
+.brand-sub{font-size:10px;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase}
+.sidebar-nav{padding:10px 8px;flex:1;overflow-y:auto}
+.nav-section{margin-bottom:16px}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);padding:0 8px;margin-bottom:6px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;color:var(--text-muted);font-size:13px;font-weight:500;transition:all var(--trans);margin-bottom:2px}
+.nav-item:hover{background:var(--card);color:var(--text)}
+.nav-item.active{background:var(--accent-glow);color:var(--accent);border-left:2px solid var(--accent);padding-left:8px}
+.nav-item .icon{font-size:15px;width:18px;text-align:center}
+.project-nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r-sm);cursor:pointer;color:var(--text-muted);font-size:12px;transition:all var(--trans);margin-bottom:1px}
+.project-nav-item:hover{background:var(--card);color:var(--text)}
+.project-nav-item.active{background:var(--accent-glow);color:var(--text)}
+.project-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.project-nav-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.sidebar-footer{padding:12px;border-top:1px solid var(--border)}
+.user-chip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);cursor:pointer;transition:all var(--trans)}
+.user-chip:hover{background:var(--card)}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-dim);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;overflow:hidden}
+.user-avatar img{width:100%;height:100%;object-fit:cover}
+.user-info{flex:1;min-width:0}
+.user-email{font-size:11px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-menu{background:var(--sidebar);border:1px solid var(--border);border-radius:var(--r-sm);position:absolute;bottom:56px;left:12px;right:12px;z-index:100;overflow:hidden}
+.user-menu.hidden{display:none}
+.user-menu-item{padding:9px 12px;font-size:13px;cursor:pointer;transition:background var(--trans);color:var(--text-muted)}
+.user-menu-item:hover{background:var(--card);color:var(--text)}
+.user-menu-item.danger{color:var(--red)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--sidebar);flex-shrink:0}
+.topbar-title{font-size:15px;font-weight:600}
+.topbar-sub{font-size:11px;color:var(--text-muted)}
+.topbar-actions{display:flex;gap:8px;align-items:center}
+.content{flex:1;overflow-y:auto;padding:20px}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--r-sm);font-size:13px;font-weight:500;cursor:pointer;transition:all var(--trans);border:none}
+.btn-primary{background:var(--accent);color:#0a1220}
+.btn-primary:hover{filter:brightness(1.1)}
+.btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--card);color:var(--text);border-color:var(--border-light)}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(240,74,74,.3)}
+.btn-danger:hover{background:rgba(240,74,74,.22)}
+.btn-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.btn-green:hover{background:rgba(34,197,94,.22)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{padding:6px;border-radius:var(--r-sm);background:var(--card);border:1px solid var(--border);color:var(--text-muted);transition:all var(--trans)}
+.btn-icon:hover{background:var(--card-hover);color:var(--text);border-color:var(--border-light)}
+.btn-copy{background:var(--card);border:1px solid var(--border);color:var(--text-muted);padding:4px 9px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--mono);transition:all var(--trans)}
+.btn-copy:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:12px}
+.card-hover{transition:all var(--trans)}
+.card-hover:hover{border-color:var(--border-light);background:var(--card-hover)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.row{display:flex;gap:10px;align-items:flex-start}
+.row.center{align-items:center}
+.flex1{flex:1}
+.mb-4{margin-bottom:4px}.mb-8{margin-bottom:8px}.mb-12{margin-bottom:12px}
+.mb-16{margin-bottom:16px}.mb-20{margin-bottom:20px}
+.mt-8{margin-top:8px}.mt-12{margin-top:12px}.mt-16{margin-top:16px}
+
+/* ── TABS ── */
+.subtabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto}
+.subtab{padding:9px 16px;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all var(--trans)}
+.subtab:hover{color:var(--text)}
+.subtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--sidebar);border:1px solid var(--border);border-radius:var(--r);padding:24px;width:600px;max-width:96vw;max-height:92vh;overflow-y:auto}
+.modal-lg{width:720px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-header h3{font-size:16px;font-weight:700}
+.modal-close{background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:2px 6px;border-radius:4px}
+.modal-close:hover{color:var(--text);background:var(--card)}
+.modal-footer{margin-top:20px;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.form-group{margin-bottom:14px}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)}
+.badge-red{background:var(--red-dim);color:var(--red);border:1px solid rgba(240,74,74,.3)}
+.badge-blue{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(79,156,249,.3)}
+.badge-purple{background:rgba(167,139,250,.12);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;background:var(--card);border:1px solid var(--border);color:var(--text-muted);margin:2px}
+
+/* ── TOGGLE ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:13px;color:var(--text-muted)}
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-slider{position:absolute;inset:0;background:var(--border-light);border-radius:20px;cursor:pointer;transition:.2s}
+.toggle-slider::before{content:'';position:absolute;width:14px;height:14px;background:#fff;border-radius:50%;left:3px;top:3px;transition:.2s}
+.toggle input:checked+.toggle-slider{background:var(--accent)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(16px)}
+
+/* ── COLLAPSIBLE ── */
+.collapsible-header{display:flex;align-items:center;justify-content:space-between;padding:10px 0;cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:2px}
+.collapsible-header:hover h3{color:var(--accent)}
+.collapsible-arrow{font-size:11px;color:var(--text-dim);transition:transform var(--trans)}
+.collapsible-arrow.open{transform:rotate(90deg)}
+.collapsible-body.hidden{display:none}
+
+/* ── QUALITY / VERIFICATION ── */
+.quality-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.quality-item{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 8px;background:var(--bg);border-radius:4px}
+.quality-item input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);flex-shrink:0}
+.quality-item label{margin:0;color:var(--text-muted);font-size:12px;cursor:pointer}
+.verification-bar{display:flex;gap:4px;align-items:center;padding:10px;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--border)}
+.verification-status{font-size:12px;font-weight:500}
+
+/* ── CITATION BLOCK ── */
+.citation-format{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:10px;overflow:hidden}
+.citation-format-header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--border)}
+.citation-format-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);font-family:var(--mono)}
+.citation-text{padding:10px 12px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--text);word-break:break-word}
+
+/* ── EVIDENCE CARDS ── */
+.evidence-card{background:var(--card-alt);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;border-left:3px solid var(--accent)}
+.evidence-card-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.evidence-quote{font-style:italic;color:var(--text);font-size:13px;line-height:1.7;background:var(--bg);padding:10px 12px;border-radius:var(--r-sm);border-left:3px solid var(--accent-dim);margin-bottom:8px;word-break:break-word}
+.evidence-intext{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-dim);padding:3px 8px;border-radius:3px;display:inline-block;margin-bottom:8px}
+.evidence-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--text-muted)}
+.evidence-meta span{display:flex;align-items:center;gap:4px}
+
+/* ── SCREENSHOT / PDF THUMBS ── */
+.pdf-thumb-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.pdf-thumb{position:relative;width:90px}
+.pdf-thumb img{width:90px;height:110px;object-fit:cover;border-radius:4px;border:2px solid var(--border);display:block}
+.pdf-thumb:hover img{border-color:var(--accent)}
+.pdf-thumb-caption{font-size:10px;color:var(--text-dim);text-align:center;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdf-thumb-del{position:absolute;top:2px;right:2px;background:var(--red);color:#fff;border:none;border-radius:3px;width:16px;height:16px;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center}
+.pdf-thumb:hover .pdf-thumb-del{display:flex}
+
+/* ── TOOLS ── */
+.tool-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:12px;transition:all var(--trans);margin-bottom:8px}
+.tool-card:hover{border-color:var(--border-light);background:var(--card-hover)}
+.tool-card.pinned{border-color:var(--amber);background:var(--amber-dim)}
+.tool-icon{font-size:20px;flex-shrink:0}
+.tool-info{flex:1;min-width:0}
+.tool-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.tool-url{font-size:11px;color:var(--text-dim);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tool-tag{font-size:10px;color:var(--text-dim);margin-top:2px}
+.tool-actions{display:flex;gap:5px;align-items:center;flex-shrink:0}
+.tools-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text-dim);margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+/* ── SEARCH BAR ── */
+.search-bar{position:relative;margin-bottom:16px}
+.search-bar input{padding-left:32px}
+.search-bar::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none;z-index:1}
+
+/* ── SOURCE LIST ── */
+.source-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:8px;cursor:pointer;transition:all var(--trans)}
+.source-item:hover{border-color:var(--border-light);background:var(--card-hover)}
+.source-item.active{border-color:var(--accent);background:var(--accent-dim)}
+.source-type-icon{font-size:18px;flex-shrink:0}
+.source-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.source-meta{font-size:11px;color:var(--text-muted)}
+.source-detail{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-top:8px}
+
+/* ── FETCH STATUS ── */
+.fetch-bar{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--bg);border-radius:var(--r-sm);border:1px solid var(--border);margin-bottom:14px;flex-wrap:wrap}
+.fetch-input{flex:1;min-width:180px}
+.fetch-spinning{animation:spin .8s linear infinite;display:inline-block}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* ── AI VERIFY MODAL ── */
+.ai-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.ai-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r-sm);font-size:12px;font-weight:500;cursor:pointer;transition:all var(--trans);border:1px solid var(--border);background:var(--card);color:var(--text-muted)}
+.ai-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.checklist{list-style:none;padding:0}
+.checklist li{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted)}
+.checklist li:last-child{border-bottom:none}
+.checklist li::before{content:'☐';color:var(--accent);flex-shrink:0;font-size:13px}
+
+/* ── TIMELINE ── */
+.timeline-date-group{margin-bottom:20px}
+.timeline-date-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.timeline-entry{display:flex;gap:12px;align-items:flex-start;padding:5px 0}
+.timeline-time{font-size:11px;font-family:var(--mono);color:var(--text-dim);flex-shrink:0;width:48px;padding-top:1px}
+.timeline-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:5px}
+.timeline-action{font-size:12px;color:var(--text-muted);flex:1}
+
+/* ── NOTES ── */
+.note-toolbar{display:flex;gap:4px;margin-bottom:6px}
+.note-toolbar button{background:var(--card);border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:4px;font-size:12px;cursor:pointer}
+.note-toolbar button:hover{background:var(--card-hover);color:var(--text)}
+.note-editor{background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;min-height:100px;font-size:13px;line-height:1.6;color:var(--text);outline:none;transition:border-color var(--trans)}
+.note-editor:focus{border-color:var(--accent)}
+.note-editor:empty::before{content:attr(data-placeholder);color:var(--text-dim)}
+.note-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:8px}
+.note-item-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.note-item-source{font-size:11px;font-weight:600;color:var(--accent)}
+.note-item-date{font-size:11px;color:var(--text-dim);font-family:var(--mono)}
+.note-item-body{font-size:13px;line-height:1.6;color:var(--text-muted)}
+
+/* ── MISC ── */
+.empty-state{text-align:center;padding:60px 20px}
+.empty-icon{font-size:48px;margin-bottom:16px}
+.empty-title{font-size:16px;font-weight:600;margin-bottom:8px}
+.empty-sub{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+.toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 16px;font-size:13px;color:var(--text);animation:slideIn .2s ease;display:flex;align-items:center;gap:8px;min-width:220px;max-width:340px}
+.toast.success{border-left:3px solid var(--green)}
+.toast.error{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--accent)}
+@keyframes slideIn{from{transform:translateX(30px);opacity:0}to{transform:translateX(0);opacity:1}}
+.project-icon{width:32px;height:32px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.section-divider{height:1px;background:var(--border);margin:16px 0}
+.colour-swatches{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .1s}
+.swatch.selected,.swatch:hover{border-color:#fff;transform:scale(1.15)}
+.icon-options{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.icon-opt{width:32px;height:32px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;background:var(--bg);border:2px solid var(--border);transition:all .1s}
+.icon-opt.selected,.icon-opt:hover{border-color:var(--accent);background:var(--accent-dim)}
+.cit-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.cit-item-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.progress-row{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:4px}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s}
+.sync-badge{font-size:10px;color:var(--text-dim);font-family:var(--mono)}
+.hamburger{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px}
+@media(max-width:700px){
+  .hamburger{display:block}
+  .sidebar{position:fixed;left:-240px;top:0;bottom:0;z-index:500;transition:left .25s}
+  .sidebar.open{left:0}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .quality-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     AUTH SCREEN
+     ══════════════════════════════════════════ -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">📚</div>
+    <div class="auth-title">ResearchVault</div>
+    <div class="auth-sub">Academic research — organised, cited, synced.</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="auth-tab-login" onclick="switchAuthTab('login')">Sign In</div>
+      <div class="auth-tab" id="auth-tab-signup" onclick="switchAuthTab('signup')">Create Account</div>
+    </div>
+    <div id="auth-login-form">
+      <div class="form-group"><label>Email</label><input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="form-group"><label>Password</label><input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doEmailSignIn()">Sign In</button>
+      <div class="auth-divider">or</div>
+      <button class="btn-google" onclick="doGoogleSignIn()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+    </div>
+    <div id="auth-signup-form" style="display:none">
+      <div class="form-group"><label>Email</label><input id="auth-email2" type="email" placeholder="you@example.com"></div>
+      <div class="form-group"><label>Password (min 6 chars)</label><input id="auth-password2" type="password" placeholder="••••••••"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doEmailSignUp()">Create Account</button>
+      <div class="auth-divider">or</div>
+      <button class="btn-google" onclick="doGoogleSignIn()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+    </div>
+    <div id="auth-error" class="auth-error" style="display:none"></div>
+    <p style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:14px">
+      <b>No Firebase config?</b> <a href="#" onclick="useLocalMode()">Use local-only mode (no sync)</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MAIN APP
+     ══════════════════════════════════════════ -->
+<div class="app" id="app-shell" style="display:none">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div style="font-size:22px">📚</div>
+      <div>
+        <div class="brand-name">ResearchVault</div>
+        <div class="brand-sub">v2 · Academic Organiser</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-label">Navigation</div>
+        <div class="nav-item active" onclick="showView('projects')" id="nav-projects"><span class="icon">🗂️</span> Projects</div>
+        <div class="nav-item" onclick="showView('tools')" id="nav-tools"><span class="icon">🔗</span> Research Tools</div>
+        <div class="nav-item" onclick="showView('settings')" id="nav-settings"><span class="icon">⚙️</span> Settings</div>
+      </div>
+      <div class="nav-section" id="sidebar-projects-section">
+        <div class="nav-label">Your Projects</div>
+        <div id="sidebar-project-list"></div>
+        <div style="padding:4px 0">
+          <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center" onclick="openNewProjectModal()">+ New Project</button>
+        </div>
+      </div>
+    </nav>
+    <div class="sidebar-footer" style="position:relative">
+      <div id="user-menu" class="user-menu hidden">
+        <div class="user-menu-item" onclick="showView('settings');closeUserMenu()">⚙️ Settings</div>
+        <div class="user-menu-item danger" onclick="doSignOut()">→ Sign Out</div>
+      </div>
+      <div class="user-chip" onclick="toggleUserMenu()">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div style="font-size:12px;font-weight:600" id="user-name">Guest</div>
+          <div class="user-email" id="user-email">local mode</div>
+        </div>
+        <span style="font-size:10px;color:var(--text-dim)">▲</span>
+      </div>
+      <div id="sync-status" class="sync-badge" style="text-align:center;padding:2px 0"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <div>
+          <div class="topbar-title" id="topbar-title">ResearchVault</div>
+          <div class="topbar-sub" id="topbar-sub">Your academic research organiser</div>
+        </div>
+      </div>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </div>
+    <div class="content" id="main-content"></div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay hidden" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title">Modal</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+'use strict';
+/* ═══════════════════════════════════════════════════════════════════
+   FIREBASE CONFIGURATION
+   Replace with your actual Firebase config (already filled below).
+   ═══════════════════════════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDKkNMoMJlvjkQJm9EUU4JprCNiQr_-tGg",
+  authDomain: "researchvault-88476.firebaseapp.com",
+  projectId: "researchvault-88476",
+  storageBucket: "researchvault-88476.firebasestorage.app",
+  messagingSenderId: "502144035173",
+  appId: "1:502144035173:web:a05d431d8d17945957d98c"
+  // measurementId: "G-DEFFWEHBYE"  // not needed
+};
+
+/* ── Firebase references (populated after init) ── */
+let fbAuth = null, fbDB = null, fbStorage = null;
+let currentUser = null;
+let localMode = false; // true when Firebase not configured / user skips auth
+
+/* ── Init Firebase if config looks real ── */
+function initFirebase() {
+  if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') return false;
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fbAuth = firebase.auth();
+    fbDB   = firebase.firestore();
+    fbStorage = firebase.storage();
+    return true;
+  } catch(e) { console.warn('Firebase init failed', e); return false; }
+}
+const FIREBASE_AVAILABLE = initFirebase();
+
+/* ══════════════════════════════════════════
+   AUTH
+   ══════════════════════════════════════════ */
+function switchAuthTab(tab) {
+  document.getElementById('auth-tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('auth-tab-signup').classList.toggle('active', tab==='signup');
+  document.getElementById('auth-login-form').style.display  = tab==='login'  ? '' : 'none';
+  document.getElementById('auth-signup-form').style.display = tab==='signup' ? '' : 'none';
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg; el.style.display = '';
+}
+
+async function doEmailSignIn() {
+  if (!FIREBASE_AVAILABLE) { useLocalMode(); return; }
+  const email = document.getElementById('auth-email').value.trim();
+  const pass  = document.getElementById('auth-password').value;
+  try {
+    await fbAuth.signInWithEmailAndPassword(email, pass);
+  } catch(e) { showAuthError(friendlyAuthError(e)); }
+}
+
+async function doEmailSignUp() {
+  if (!FIREBASE_AVAILABLE) { useLocalMode(); return; }
+  const email = document.getElementById('auth-email2').value.trim();
+  const pass  = document.getElementById('auth-password2').value;
+  if (pass.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+  try {
+    await fbAuth.createUserWithEmailAndPassword(email, pass);
+  } catch(e) { showAuthError(friendlyAuthError(e)); }
+}
+
+async function doGoogleSignIn() {
+  if (!FIREBASE_AVAILABLE) { useLocalMode(); return; }
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await fbAuth.signInWithPopup(provider);
+  } catch(e) { showAuthError(friendlyAuthError(e)); }
+}
+
+async function doSignOut() {
+  if (fbAuth) await fbAuth.signOut();
+  currentUser = null;
+  localMode = true;
+  document.getElementById('auth-screen').classList.remove('hidden');
+  document.getElementById('app-shell').style.display = 'none';
+}
+
+function useLocalMode() {
+  localMode = true;
+  currentUser = null;
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('app-shell').style.display = '';
+  APP = loadLocal();
+  bootApp();
+}
+
+function friendlyAuthError(e) {
+  const m = e.message || '';
+  if (m.includes('user-not-found') || m.includes('wrong-password') || m.includes('invalid-credential')) return 'Incorrect email or password.';
+  if (m.includes('email-already-in-use')) return 'An account with this email already exists.';
+  if (m.includes('weak-password')) return 'Password is too weak. Use at least 6 characters.';
+  if (m.includes('invalid-email')) return 'Please enter a valid email address.';
+  return m;
+}
+
+/* ── Auth state listener ── */
+if (FIREBASE_AVAILABLE) {
+  fbAuth.onAuthStateChanged(async user => {
+    if (user) {
+      localMode = false; // ← FIX: reset localMode on sign-in
+      currentUser = user;
+      document.getElementById('auth-screen').classList.add('hidden');
+      document.getElementById('app-shell').style.display = '';
+      updateUserUI(user);
+      await loadFromFirestore();
+      bootApp();
+    } else {
+      if (!localMode) {
+        document.getElementById('auth-screen').classList.remove('hidden');
+        document.getElementById('app-shell').style.display = 'none';
+      }
+    }
+  });
+} else {
+  document.getElementById('auth-screen').classList.remove('hidden');
+}
+
+function updateUserUI(user) {
+  document.getElementById('user-name').textContent  = user.displayName || 'Researcher';
+  document.getElementById('user-email').textContent = user.email || '';
+  const av = document.getElementById('user-avatar');
+  if (user.photoURL) {
+    av.innerHTML = `<img src="${user.photoURL}" alt="">`;
+  } else {
+    av.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
+  }
+}
+
+function toggleUserMenu() {
+  document.getElementById('user-menu').classList.toggle('hidden');
+}
+function closeUserMenu() {
+  document.getElementById('user-menu').classList.add('hidden');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.user-chip') && !e.target.closest('.user-menu')) closeUserMenu();
+});
+
+/* ═══════════════════════════════════════════
+   DATA LAYER
+   ═══════════════════════════════════════════ */
+const LS_KEY = 'researchvault_v2';
+let APP = { projects: [], tools: getDefaultTools() };
+let currentView = 'projects';
+let currentProjectId = null;
+let currentSubTab = 'sources';
+let currentSourceId = null;
+let saveTimer = null;
+
+function loadLocal() {
+  try { const r = localStorage.getItem(LS_KEY); if(r) return JSON.parse(r); } catch(e){}
+  return { projects: [], tools: getDefaultTools() };
+}
+
+function saveLocal() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(APP)); } catch(e) {
+    toast('Local storage limit reached — consider exporting your data.','error');
+  }
+}
+
+/* ── Firestore helpers ── */
+function userDocPath() { return `users/${currentUser.uid}`; }
+
+async function loadFromFirestore() {
+  if (!fbDB || !currentUser) return;
+  setSyncStatus('Syncing…');
+  try {
+    const snap = await fbDB.collection('users').doc(currentUser.uid).get();
+    if (snap.exists) {
+      const data = snap.data();
+      APP = { projects: data.projects || [], tools: data.tools || getDefaultTools() };
+    } else {
+      APP = loadLocal(); // first sign-in: migrate local data
+      await saveToFirestore();
+    }
+    saveLocal(); // keep local cache
+    setSyncStatus('Synced ✓');
+  } catch(e) {
+    console.warn('Firestore load failed, using local cache', e);
+    APP = loadLocal();
+    setSyncStatus('Offline (local)');
+  }
+}
+
+async function saveToFirestore() {
+  if (!fbDB || !currentUser) { saveLocal(); return; }
+  try {
+    await fbDB.collection('users').doc(currentUser.uid).set(APP);
+    saveLocal();
+    setSyncStatus('Saved ✓');
+  } catch(e) {
+    saveLocal();
+    setSyncStatus('Save failed — using local');
+  }
+}
+
+function saveData() {
+  saveLocal();
+  if (!localMode && fbDB && currentUser) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveToFirestore, 1200);
+  }
+}
+
+function setSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (el) el.textContent = msg;
+}
+
+/* ── Firebase Storage: upload file ── */
+async function uploadFileToStorage(file, path) {
+  if (!fbStorage || !currentUser || localMode) return null;
+  try {
+    const ref = fbStorage.ref(`users/${currentUser.uid}/${path}`);
+    const snap = await ref.put(file);
+    return await snap.ref.getDownloadURL();
+  } catch(e) {
+    console.warn('Storage upload failed', e);
+    return null;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   DEFAULT TOOLS
+   ═══════════════════════════════════════════ */
+function getDefaultTools() {
+  return [
+    {id:uid(),category:'search',name:'Semantic Scholar',url:'https://www.semanticscholar.org',icon:'🔬',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'Google Scholar',url:'https://scholar.google.com',icon:'🎓',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'OpenAlex',url:'https://openalex.org',icon:'🔭',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'Unpaywall',url:'https://unpaywall.org',icon:'🔓',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'JSTOR',url:'https://www.jstor.org',icon:'📖',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'PubMed',url:'https://pubmed.ncbi.nlm.nih.gov',icon:'🧬',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'Allen AI (ASTA)',url:'https://asta.allen.ai/discover',icon:'🤖',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'BASE Search',url:'https://www.base-search.net',icon:'📂',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'CORE',url:'https://core.ac.uk',icon:'🌍',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'arXiv',url:'https://arxiv.org',icon:'⚡',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'ERIC (Education)',url:'https://eric.ed.gov',icon:'🏫',custom:false,pinned:false},
+    {id:uid(),category:'search',name:'ResearchGate',url:'https://www.researchgate.net',icon:'🔗',custom:false,pinned:false},
+    {id:uid(),category:'citation',name:'Scribbr Citation Generator',url:'https://www.scribbr.com/citation/generator/',icon:'✍️',custom:false,pinned:false},
+    {id:uid(),category:'citation',name:'ZoteroBib',url:'https://zbib.org',icon:'🗒️',custom:false,pinned:false},
+    {id:uid(),category:'citation',name:'MyBib',url:'https://www.mybib.com',icon:'📝',custom:false,pinned:false},
+    {id:uid(),category:'citation',name:'Citation Machine',url:'https://www.citationmachine.net',icon:'⚙️',custom:false,pinned:false},
+    {id:uid(),category:'ai',name:'ChatGPT',url:'https://chatgpt.com',icon:'🤖',custom:false,pinned:false},
+    {id:uid(),category:'ai',name:'Google Gemini',url:'https://gemini.google.com',icon:'✨',custom:false,pinned:false},
+    {id:uid(),category:'ai',name:'DeepSeek',url:'https://chat.deepseek.com',icon:'🌊',custom:false,pinned:false},
+    {id:uid(),category:'ai',name:'Grok',url:'https://grok.com',icon:'⚡',custom:false,pinned:false},
+    {id:uid(),category:'ai',name:'Claude',url:'https://claude.ai',icon:'🌙',custom:false,pinned:false},
+    {id:uid(),category:'ai',name:'Perplexity',url:'https://www.perplexity.ai',icon:'🔍',custom:false,pinned:false},
+  ];
+}
+
+/* ═══════════════════════════════════════════
+   UTILS
+   ═══════════════════════════════════════════ */
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function now() { return new Date().toISOString(); }
+function fmtDate(iso) { if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtTime(iso) { if(!iso) return ''; const d=new Date(iso); return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function fmtDateGroup(iso) {
+  if(!iso) return '';
+  const d=new Date(iso); const today=new Date();
+  if(today.toDateString()===d.toDateString()) return 'Today';
+  const yest=new Date(today); yest.setDate(today.getDate()-1);
+  if(yest.toDateString()===d.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+}
+function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function toast(msg, type='success') {
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;
+  el.innerHTML=`<span>${type==='success'?'✓':type==='error'?'✕':'ℹ'}</span><span>${esc(msg)}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>el.remove(), 3000);
+}
+
+function copyText(text, label='') {
+  navigator.clipboard.writeText(text).then(()=>toast(label?`${label} copied`:'Copied!')).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    toast(label?`${label} copied`:'Copied!');
+  });
+}
+
+/* Helper functions to avoid inline JSON.stringify breaking with quotes */
+function copyTextFromAttr(el) {
+  const payload = decodeURIComponent(el.dataset.payload);
+  const label = el.dataset.label || '';
+  copyText(payload, label);
+}
+
+function saveCitationFromAttr(el) {
+  const sourceId = el.dataset.sourceid;
+  const fmt = el.dataset.fmt;
+  const text = decodeURIComponent(el.dataset.text);
+  saveCitationToProject(sourceId, fmt, text);
+}
+
+function openAIVerifyModalFromAttr(el) {
+  const sourceId = el.dataset.sourceid;
+  const fmt = el.dataset.fmt;
+  const text = decodeURIComponent(el.dataset.text);
+  openAIVerifyModalFmt(sourceId, fmt, text);
+}
+
+function openCitVerifyFromAttr(el) {
+  const citation = JSON.parse(decodeURIComponent(el.dataset.citation));
+  openCitVerifyModal(citation);
+}
+
+function copyAndOpen(payload, url) {
+  copyText(payload, 'Verification prompt');
+  window.open(url, '_blank');
+}
+
+function copyAndOpenFromAttr(el, url) {
+  const payload = decodeURIComponent(el.dataset.payload);
+  copyAndOpen(payload, url);
+}
+
+/* ═══════════════════════════════════════════
+   PROJECT CONSTANTS
+   ═══════════════════════════════════════════ */
+const PROJECT_COLOURS=['#4f9cf9','#22c55e','#f59e0b','#a78bfa','#f04a4a','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4'];
+const PROJECT_ICONS=['📁','🔬','📖','🎓','💡','🧪','📊','🌐','⚗️','🧠','📝','🏛️','🌍','🔭','📡','🧬','🔐','📐','🎯','🚀'];
+const SOURCE_TYPES=[
+  {key:'journal',icon:'📄',label:'Journal Article'},
+  {key:'book',icon:'📕',label:'Book'},
+  {key:'chapter',icon:'📑',label:'Book Chapter'},
+  {key:'dissertation',icon:'🎓',label:'Dissertation / Thesis'},
+  {key:'report',icon:'🧪',label:'Research Report'},
+  {key:'dataset',icon:'📊',label:'Dataset'},
+  {key:'website',icon:'🌐',label:'Website'},
+  {key:'news',icon:'📰',label:'News Article'},
+  {key:'conference',icon:'📋',label:'Conference Paper'},
+  {key:'preprint',icon:'📝',label:'Preprint'},
+];
+function sourceTypeInfo(key) { return SOURCE_TYPES.find(t=>t.key===key)||SOURCE_TYPES[0]; }
+
+function getProject(id) { return APP.projects.find(p=>p.id===id); }
+function getSource(proj,id) { return (proj.sources||[]).find(s=>s.id===id); }
+
+function addTimeline(projectId, action) {
+  const proj=getProject(projectId); if(!proj) return;
+  if(!proj.timeline) proj.timeline=[];
+  proj.timeline.push({id:uid(),ts:now(),action});
+  saveData();
+}
+
+/* ═══════════════════════════════════════════
+   METADATA FETCHING (Crossref + OpenAlex)
+   ═══════════════════════════════════════════ */
+function extractDOI(input) {
+  const m = input.match(/10\.\d{4,}\/[^\s"<>]+/);
+  return m ? m[0].replace(/[.,;)\]]+$/, '') : null;
+}
+
+// Custom fetch with timeout (replaces AbortSignal.timeout for wider support)
+async function fetchWithTimeout(url, ms=8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchMetadataFromDOI(doiOrUrl) {
+  const doi = extractDOI(doiOrUrl) || doiOrUrl.replace(/https?:\/\/doi\.org\//,'').trim();
+  if (!doi) return null;
+
+  // Try Crossref first
+  try {
+    const r = await fetchWithTimeout(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
+    if (r.ok) {
+      const j = await r.json();
+      const w = j.message;
+      return parseCrossref(w);
+    }
+  } catch(e) {}
+
+  // Fallback: OpenAlex
+  try {
+    const r = await fetchWithTimeout(`https://api.openalex.org/works/doi:${encodeURIComponent(doi)}`);
+    if (r.ok) {
+      const w = await r.json();
+      return parseOpenAlex(w);
+    }
+  } catch(e) {}
+
+  return null;
+}
+
+function parseCrossref(w) {
+  const authors = (w.author||[]).map(a=>{
+    if(a.family && a.given) return `${a.family}, ${a.given[0]}.`;
+    return a.family || a.name || '';
+  }).filter(Boolean);
+
+  const year = (w.published?.['date-parts']?.[0]?.[0]) ||
+               (w['published-online']?.['date-parts']?.[0]?.[0]) ||
+               (w['published-print']?.['date-parts']?.[0]?.[0]) || '';
+
+  const openAccessUrl = (w.link||[]).find(l=>l['content-type']==='application/pdf')?.URL || '';
+  const abstract = (w.abstract||'').replace(/<[^>]+>/g,'').trim();
+
+  return {
+    title:      w.title?.[0] || '',
+    authors:    authors.join('; '),
+    authorList: authors,
+    year:       String(year),
+    type:       crossrefTypeMap(w.type),
+    publisher:  w.publisher || '',
+    journal:    w['container-title']?.[0] || '',
+    volume:     w.volume || '',
+    issue:      w.issue || '',
+    pages:      w.page || '',
+    doi:        w.DOI || '',
+    abstract,
+    pdfUrl:     openAccessUrl,
+    fetchedFrom:'Crossref API',
+    verificationStatus: 'auto-verified',
+  };
+}
+
+function parseOpenAlex(w) {
+  const authors = (w.authorships||[]).map(a=>a.author?.display_name||'').filter(Boolean);
+  const year = w.publication_year || '';
+  const oa = w.open_access;
+  return {
+    title:      w.title || '',
+    authors:    authors.join('; '),
+    authorList: authors,
+    year:       String(year),
+    type:       'journal',
+    publisher:  w.host_venue?.publisher || w.primary_location?.source?.publisher || '',
+    journal:    w.host_venue?.display_name || w.primary_location?.source?.display_name || '',
+    volume:     w.biblio?.volume || '',
+    issue:      w.biblio?.issue || '',
+    pages:      [w.biblio?.first_page, w.biblio?.last_page].filter(Boolean).join('–'),
+    doi:        (w.doi||'').replace('https://doi.org/',''),
+    abstract:   (w.abstract_inverted_index ? reconstructAbstract(w.abstract_inverted_index) : ''),
+    pdfUrl:     oa?.oa_url || '',
+    fetchedFrom:'OpenAlex API',
+    verificationStatus: 'auto-verified',
+  };
+}
+
+function reconstructAbstract(inv) {
+  if (!inv) return '';
+  const words={}; Object.entries(inv).forEach(([w,positions])=>positions.forEach(p=>{words[p]=w;}));
+  return Object.keys(words).sort((a,b)=>a-b).map(k=>words[k]).join(' ');
+}
+
+function crossrefTypeMap(t) {
+  const m={'journal-article':'journal','book':'book','book-chapter':'chapter',
+    'dissertation':'dissertation','report':'report','dataset':'dataset','proceedings-article':'conference',
+    'posted-content':'preprint'};
+  return m[t]||'journal';
+}
+
+/* ═══════════════════════════════════════════
+   MODAL
+   ═══════════════════════════════════════════ */
+function openModal(title, bodyHTML, footerHTML, large=false) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHTML;
+  document.getElementById('modal-footer').innerHTML = footerHTML||'';
+  const box = document.getElementById('modal-box');
+  box.classList.toggle('modal-lg', !!large);
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function closeModalOutside(e) { if(e.target.id==='modal-overlay') closeModal(); }
+
+/* ═══════════════════════════════════════════
+   SIDEBAR
+   ═══════════════════════════════════════════ */
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
+function renderSidebar() {
+  const list=document.getElementById('sidebar-project-list');
+  const projects=APP.projects;
+  if(!projects.length){list.innerHTML='<div style="font-size:11px;color:var(--text-dim);padding:4px 8px">No projects yet</div>';return;}
+  list.innerHTML=projects.map(p=>`
+    <div class="project-nav-item ${currentProjectId===p.id&&currentView==='project'?'active':''}" onclick="openProject('${p.id}')">
+      <div class="project-dot" style="background:${p.colour||'var(--accent)'}"></div>
+      <span class="project-nav-name">${esc(p.name)}</span>
+    </div>`).join('');
+}
+
+function showView(view) {
+  currentView=view;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const el=document.getElementById('nav-'+view);
+  if(el) el.classList.add('active');
+  renderSidebar();
+  if(view==='projects') renderProjectsView();
+  else if(view==='tools') renderToolsView();
+  else if(view==='settings') renderSettingsView();
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+function openProject(id) {
+  currentProjectId=id; currentView='project'; currentSourceId=null;
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  renderSidebar(); renderProjectView();
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+/* ═══════════════════════════════════════════
+   PROJECTS VIEW
+   ═══════════════════════════════════════════ */
+function renderProjectsView() {
+  document.getElementById('topbar-title').textContent='Projects';
+  document.getElementById('topbar-sub').textContent=`${APP.projects.length} project${APP.projects.length!==1?'s':''}`;
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary btn-sm" onclick="openNewProjectModal()">+ New Project</button>`;
+  if(!APP.projects.length){
+    document.getElementById('main-content').innerHTML=`<div class="empty-state"><div class="empty-icon">📚</div><div class="empty-title">No projects yet</div><div class="empty-sub">Create your first research project to get started.</div><button class="btn btn-primary" onclick="openNewProjectModal()">+ Create Project</button></div>`;
+    return;
+  }
+  document.getElementById('main-content').innerHTML=`<div class="grid-2">${APP.projects.map(p=>`
+    <div class="card card-hover" style="cursor:pointer;border-left:3px solid ${p.colour||'var(--accent)'}">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div class="project-icon" style="background:${p.colour||'var(--accent)'}22">${p.icon||'📁'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;margin-bottom:3px">${esc(p.name)}</div>
+          ${p.description?`<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.description)}</div>`:''}
+          <div style="display:flex;gap:10px;font-size:11px;color:var(--text-dim)">
+            <span>📄 ${(p.sources||[]).length} sources</span>
+            <span>📅 ${fmtDate(p.modified||p.created)}</span>
+          </div>
+          ${(p.tags||[]).length?`<div style="margin-top:6px">${p.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
+        </div>
+        <div style="display:flex;gap:4px">
+          <button class="btn-icon" title="Open" onclick="openProject('${p.id}')">▶</button>
+          <button class="btn-icon" title="Edit" onclick="editProjectModal('${p.id}');event.stopPropagation()">✏️</button>
+          <button class="btn-icon" title="Delete" onclick="deleteProject('${p.id}');event.stopPropagation()">🗑️</button>
+        </div>
+      </div>
+      ${p.researchQuestion?`<div style="margin-top:10px;padding:8px;background:var(--bg);border-radius:4px;font-size:11px;color:var(--text-muted)"><b style="color:var(--accent)">RQ:</b> ${esc(p.researchQuestion)}</div>`:''}
+    </div>`).join('')}</div>`;
+}
+
+let _selColour=PROJECT_COLOURS[0], _selIcon='📁';
+function selectColour(c,el){_selColour=c;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));el.classList.add('selected');document.getElementById('pcolour').value=c;}
+function selectIcon(ic,el){_selIcon=ic;document.querySelectorAll('.icon-opt').forEach(s=>s.classList.remove('selected'));el.classList.add('selected');document.getElementById('picon').value=ic;}
+
+function openNewProjectModal(){
+  _selColour=PROJECT_COLOURS[0];_selIcon='📁';
+  const cols=PROJECT_COLOURS.map(c=>`<div class="swatch" style="background:${c}" onclick="selectColour('${c}',this)"></div>`).join('');
+  const ics=PROJECT_ICONS.map(ic=>`<div class="icon-opt" onclick="selectIcon('${ic}',this)">${ic}</div>`).join('');
+  openModal('New Project',`
+    <div class="form-group"><label>Project Name *</label><input id="pname" placeholder="e.g. Thesis Chapter 2" autofocus></div>
+    <div class="form-group"><label>Description</label><input id="pdesc" placeholder="What is this research about?"></div>
+    <div class="form-group"><label>Research Question</label><input id="prq" placeholder="The central question you are investigating"></div>
+    <div class="form-group"><label>Tags (comma-separated)</label><input id="ptags" placeholder="e.g. AI, education, 2024"></div>
+    <div class="form-group"><label>Colour</label><div class="colour-swatches" id="colour-swatches">${cols}</div></div>
+    <div class="form-group"><label>Icon</label><div class="icon-options">${ics}</div></div>
+    <input type="hidden" id="pcolour" value="${PROJECT_COLOURS[0]}">
+    <input type="hidden" id="picon" value="📁">
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="createProject()">Create Project</button>`);
+  setTimeout(()=>{document.querySelector('.swatch')?.classList.add('selected');document.querySelector('.icon-opt')?.classList.add('selected');},10);
+}
+
+function createProject(){
+  const name=document.getElementById('pname').value.trim();
+  if(!name){toast('Project name is required','error');return;}
+  const tags=document.getElementById('ptags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const proj={id:uid(),name,description:document.getElementById('pdesc').value.trim(),researchQuestion:document.getElementById('prq').value.trim(),tags,colour:document.getElementById('pcolour').value||PROJECT_COLOURS[0],icon:document.getElementById('picon').value||'📁',created:now(),modified:now(),sources:[],notes:[],timeline:[],citations:[],evidence:[]};
+  APP.projects.push(proj); saveData(); closeModal(); toast(`Project "${name}" created`);
+  addTimeline(proj.id,'Project created'); openProject(proj.id);
+}
+
+function editProjectModal(id){
+  const p=getProject(id); if(!p) return;
+  _selColour=p.colour||PROJECT_COLOURS[0]; _selIcon=p.icon||'📁';
+  const cols=PROJECT_COLOURS.map(c=>`<div class="swatch ${p.colour===c?'selected':''}" style="background:${c}" onclick="selectColour('${c}',this)"></div>`).join('');
+  const ics=PROJECT_ICONS.map(ic=>`<div class="icon-opt ${p.icon===ic?'selected':''}" onclick="selectIcon('${ic}',this)">${ic}</div>`).join('');
+  openModal('Edit Project',`
+    <div class="form-group"><label>Project Name *</label><input id="pname" value="${esc(p.name)}"></div>
+    <div class="form-group"><label>Description</label><input id="pdesc" value="${esc(p.description||'')}"></div>
+    <div class="form-group"><label>Research Question</label><input id="prq" value="${esc(p.researchQuestion||'')}"></div>
+    <div class="form-group"><label>Tags (comma-separated)</label><input id="ptags" value="${esc((p.tags||[]).join(', '))}"></div>
+    <div class="form-group"><label>Colour</label><div class="colour-swatches">${cols}</div></div>
+    <div class="form-group"><label>Icon</label><div class="icon-options">${ics}</div></div>
+    <input type="hidden" id="pcolour" value="${p.colour||PROJECT_COLOURS[0]}">
+    <input type="hidden" id="picon" value="${p.icon||'📁'}">
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditProject('${id}')">Save Changes</button>`);
+}
+
+function saveEditProject(id){
+  const p=getProject(id); if(!p) return;
+  const name=document.getElementById('pname').value.trim();
+  if(!name){toast('Project name is required','error');return;}
+  Object.assign(p,{name,description:document.getElementById('pdesc').value.trim(),researchQuestion:document.getElementById('prq').value.trim(),tags:document.getElementById('ptags').value.split(',').map(t=>t.trim()).filter(Boolean),colour:document.getElementById('pcolour').value,icon:document.getElementById('picon').value,modified:now()});
+  saveData(); closeModal(); toast('Project updated');
+  if(currentView==='project'&&currentProjectId===id) renderProjectView(); else {renderSidebar();renderProjectsView();}
+}
+
+function deleteProject(id){
+  const p=getProject(id); if(!p) return;
+  if(!confirm(`Delete project "${p.name}"? This cannot be undone.`)) return;
+  APP.projects=APP.projects.filter(pr=>pr.id!==id); saveData(); toast('Project deleted');
+  if(currentProjectId===id){currentProjectId=null;showView('projects');}else{renderSidebar();renderProjectsView();}
+}
+
+/* ═══════════════════════════════════════════
+   PROJECT VIEW
+   ═══════════════════════════════════════════ */
+function renderProjectView(){
+  const p=getProject(currentProjectId); if(!p){showView('projects');return;}
+  document.getElementById('topbar-title').textContent=p.name;
+  document.getElementById('topbar-sub').textContent=`${(p.sources||[]).length} sources · Modified ${fmtDate(p.modified||p.created)}`;
+  document.getElementById('topbar-actions').innerHTML=`
+    <button class="btn btn-ghost btn-sm" onclick="editProjectModal('${p.id}')">✏️ Edit</button>
+    <button class="btn btn-primary btn-sm" onclick="openAddSourceModal()">+ Add Source</button>
+  `;
+  const tabs=['sources','citations','evidence','notes','timeline'];
+  const tabLabels=['📄 Sources','🔖 Citations','💬 Evidence','📝 Notes','📅 Timeline'];
+  document.getElementById('main-content').innerHTML=`
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
+      <div class="project-icon" style="background:${p.colour||'var(--accent)'}22;width:40px;height:40px;font-size:20px">${p.icon||'📁'}</div>
+      <div>
+        <h2>${esc(p.name)}</h2>
+        ${p.description?`<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(p.description)}</div>`:''}
+        ${p.researchQuestion?`<div style="font-size:12px;color:var(--accent);margin-top:4px"><b>RQ:</b> ${esc(p.researchQuestion)}</div>`:''}
+      </div>
+    </div>
+    <div class="subtabs">${tabs.map((t,i)=>`<div class="subtab ${currentSubTab===t?'active':''}" onclick="switchSubTab('${t}')">${tabLabels[i]}</div>`).join('')}</div>
+    <div id="subtab-content"></div>`;
+  renderSubTab();
+}
+
+function switchSubTab(tab){
+  currentSubTab=tab;
+  document.querySelectorAll('.subtab').forEach((el,i)=>el.classList.toggle('active',['sources','citations','evidence','notes','timeline'][i]===tab));
+  renderSubTab();
+}
+
+function renderSubTab(){
+  const tab=currentSubTab;
+  if(tab==='sources') renderSourcesTab();
+  else if(tab==='citations') renderCitationsTab();
+  else if(tab==='evidence') renderEvidenceTab();
+  else if(tab==='notes') renderNotesTab();
+  else if(tab==='timeline') renderTimelineTab();
+}
+
+/* ═══════════════════════════════════════════
+   SOURCES TAB
+   ═══════════════════════════════════════════ */
+function verificationBadge(s) {
+  const vs = s.verificationStatus || 'unverified';
+  if (vs==='auto-verified') return `<span class="badge badge-green">🟢 Metadata Auto-Verified (Crossref/OpenAlex)</span>`;
+  if (vs==='user-confirmed') return `<span class="badge badge-amber">🟡 User-Confirmed</span>`;
+  return `<span class="badge badge-red">🔴 Unverified — Manual Check Recommended</span>`;
+}
+
+function verificationLabel(s) {
+  const vs = s.verificationStatus || 'unverified';
+  if (vs==='auto-verified') return {cls:'badge-green', text:'Metadata Verified — Appears suitable for further review'};
+  if (vs==='user-confirmed') return {cls:'badge-amber', text:'User-Confirmed — Manually verified by researcher'};
+  return {cls:'badge-red', text:'Incomplete Metadata — Manual verification recommended'};
+}
+
+function renderSourcesTab(){
+  const p=getProject(currentProjectId); const sources=p.sources||[];
+  const el=document.getElementById('subtab-content');
+  if(!sources.length){
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">No sources yet</div><div class="empty-sub">Add your first academic source to this project.</div><button class="btn btn-primary" onclick="openAddSourceModal()">+ Add Source</button></div>`;
+    return;
+  }
+  const listHTML=sources.map(s=>{
+    const ti=sourceTypeInfo(s.type);
+    const vl=verificationLabel(s);
+    return `
+      <div class="source-item ${currentSourceId===s.id?'active':''}" onclick="openSource('${s.id}')">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div class="source-type-icon">${ti.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div class="source-title">${esc(s.title||'Untitled Source')}</div>
+            <div class="source-meta">${esc(s.authorsSingle||s.authors||'')}${s.year?` · ${s.year}`:''} · <i>${esc(ti.label)}</i></div>
+            ${s.journal?`<div style="font-size:11px;color:var(--text-dim)">${esc(s.journal)}</div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+            <span class="badge ${vl.cls}" style="font-size:10px;max-width:200px;text-align:right;white-space:normal">${vl.text}</span>
+            <div style="display:flex;gap:4px;margin-top:4px">
+              <button class="btn-icon btn-sm" onclick="openEditSourceModal('${s.id}');event.stopPropagation()" title="Edit">✏️</button>
+              <button class="btn-icon btn-sm" onclick="deleteSource('${s.id}');event.stopPropagation()" title="Delete">🗑️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      ${currentSourceId===s.id ? renderSourceDetail(s) : ''}`;
+  }).join('');
+  el.innerHTML=`
+    <div class="search-bar"><input id="source-search" placeholder="Search sources by title, author, year…" oninput="filterSources(this.value)"></div>
+    <div id="source-list">${listHTML}</div>`;
+}
+
+function filterSources(q){
+  const p=getProject(currentProjectId); const sources=p.sources||[];
+  const items=document.querySelectorAll('.source-item');
+  q=q.toLowerCase();
+  sources.forEach((s,i)=>{
+    const match=(s.title||'').toLowerCase().includes(q)||(s.authorsSingle||s.authors||'').toLowerCase().includes(q)||(s.year||'').toString().includes(q)||(s.journal||'').toLowerCase().includes(q);
+    if(items[i]) items[i].style.display=match?'':'none';
+  });
+}
+
+function openSource(id){ currentSourceId=currentSourceId===id?null:id; renderSourcesTab(); }
+
+function renderSourceDetail(s){
+  const toggles=s.fieldToggles||{};
+  const cits=generateCitations(s);
+
+  const fieldDefs=[
+    {key:'abstract',label:'Abstract'},
+    {key:'myNotes',label:'My Notes / Analysis'},
+    {key:'keyFindings',label:'Key Findings'},
+    {key:'methodology',label:'Methodology'},
+    {key:'limitations',label:'Limitations'},
+    {key:'relatedPapers',label:'Related Papers'},
+  ];
+
+  const qItems=[
+    {key:'biblio',label:'Bibliographic info complete'},
+    {key:'doi',label:'DOI / URL verified'},
+    {key:'publisher',label:'Publisher verified'},
+    {key:'journal',label:'Journal / venue confirmed'},
+    {key:'peerReview',label:'Peer-reviewed'},
+    {key:'retraction',label:'Retraction checked'},
+    {key:'openAccess',label:'Open access confirmed'},
+  ];
+  const quality=s.quality||{};
+
+  return `<div class="source-detail">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <h3>Source Details</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${s.verificationStatus==='user-confirmed'?'':
+          `<button class="btn btn-ghost btn-sm" onclick="markUserConfirmed('${s.id}')">🟡 Mark as Confirmed</button>`}
+        <button class="btn btn-ghost btn-sm" onclick="openFieldToggleModal('${s.id}')">⚙ Field Toggles</button>
+        <button class="btn btn-primary btn-sm" onclick="openAIVerifyModal('${s.id}')">🤖 Verify with AI</button>
+      </div>
+    </div>
+
+    <!-- VERIFICATION STATUS BANNER -->
+    <div class="verification-bar mb-12">
+      ${verificationBadge(s)}
+      ${s.fetchedFrom?`<span style="font-size:11px;color:var(--text-dim);margin-left:8px">via ${esc(s.fetchedFrom)}</span>`:''}
+    </div>
+
+    <!-- STRUCTURED METADATA GRID -->
+    <div class="grid-2 mb-12">
+      <div><label>Title</label><div style="font-size:12px;color:var(--text)">${esc(s.title||'—')}</div></div>
+      <div><label>Source Type</label><div style="font-size:12px;color:var(--text)">${sourceTypeInfo(s.type).icon} ${sourceTypeInfo(s.type).label}</div></div>
+      <div><label>Authors</label><div style="font-size:12px;color:var(--text)">${esc(s.authorsSingle||s.authors||'—')}</div></div>
+      <div><label>Year</label><div style="font-size:12px;color:var(--text)">${esc(s.year||'n.d.')}</div></div>
+      <div><label>Journal / Publisher</label><div style="font-size:12px;color:var(--text)">${esc(s.journal||s.publisher||'—')}</div></div>
+      <div><label>Volume · Issue · Pages</label><div style="font-size:12px;color:var(--text)">${[s.volume?`vol. ${s.volume}`:'',s.issue?`no. ${s.issue}`:'',s.pages?`pp. ${s.pages}`:''].filter(Boolean).join(' · ')||'—'}</div></div>
+      <div><label>DOI</label><div style="font-size:12px;font-family:var(--mono);word-break:break-all">${s.doi?`<a href="https://doi.org/${esc(s.doi)}" target="_blank">https://doi.org/${esc(s.doi)}</a>`:'—'}</div></div>
+      <div><label>Original Source URL</label><div style="font-size:12px;word-break:break-all">${s.sourceUrl?`<a href="${esc(s.sourceUrl)}" target="_blank">${esc(s.sourceUrl)}</a>`:'—'}</div></div>
+      <div><label>Canonical URL</label><div style="font-size:12px;word-break:break-all">${s.canonicalUrl?`<a href="${esc(s.canonicalUrl)}" target="_blank">${esc(s.canonicalUrl)}</a>`:'—'}</div></div>
+      <div><label>Open-Access PDF</label><div style="font-size:12px;word-break:break-all">${s.pdfUrl?`<a href="${esc(s.pdfUrl)}" target="_blank">View PDF ↗</a>`:'—'}</div></div>
+    </div>
+
+    <!-- DYNAMIC FIELDS -->
+    ${fieldDefs.filter(f=>toggles[f.key]!==false).map(f=>`
+      <div class="form-group">
+        <label>${f.label}</label>
+        <textarea onblur="saveSourceField('${s.id}','${f.key}',this.value)" rows="3">${esc(s[f.key]||'')}</textarea>
+      </div>`).join('')}
+
+    <!-- PDF / SCREENSHOT ATTACHMENTS -->
+    <div class="collapsible-header" onclick="toggleCollapsible('pdf-${s.id}')">
+      <h3>📎 Attachments (Screenshots / PDFs)</h3>
+      <span class="collapsible-arrow" id="arrow-pdf-${s.id}">▶</span>
+    </div>
+    <div class="collapsible-body hidden" id="pdf-${s.id}">
+      <div style="padding:10px 0">
+        <input type="file" id="pdf-upload-${s.id}" accept="image/*,application/pdf" style="display:none" multiple onchange="addAttachments('${s.id}',this)">
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pdf-upload-${s.id}').click()">+ Add Screenshot / File</button>
+          ${fbStorage&&!localMode?'<span style="font-size:11px;color:var(--green);padding:5px 0">☁ Files upload to Firebase Storage</span>':'<span style="font-size:11px;color:var(--text-dim);padding:5px 0">Local storage only</span>'}
+        </div>
+        <div class="pdf-thumb-grid" id="pdf-thumbs-${s.id}">
+          ${(s.attachments||s.pdfImages||[]).map((img,i)=>`
+            <div class="pdf-thumb">
+              ${img.url&&img.type==='pdf'?`<a href="${esc(img.url||img.data)}" target="_blank"><div style="width:90px;height:110px;border:2px solid var(--border);border-radius:4px;background:var(--red-dim);display:flex;align-items:center;justify-content:center;font-size:28px">📄</div></a>`:
+                `<img src="${esc(img.url||img.data)}" alt="" onclick="window.open('${esc(img.url||img.data)}','_blank')" style="cursor:pointer">`}
+              <div class="pdf-thumb-caption">${esc(img.caption||img.name||'File')}</div>
+              <button class="pdf-thumb-del" onclick="delAttachment('${s.id}',${i})">✕</button>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- SOURCE QUALITY -->
+    <div class="section-divider"></div>
+    <div class="collapsible-header" onclick="toggleCollapsible('quality-${s.id}')">
+      <h3>Source Quality Checklist</h3>
+      <span class="collapsible-arrow" id="arrow-quality-${s.id}">▶</span>
+    </div>
+    <div class="collapsible-body hidden" id="quality-${s.id}">
+      <div style="padding:10px 0">
+        <div class="quality-grid">
+          ${qItems.map(qi=>`
+            <div class="quality-item">
+              <input type="checkbox" id="q-${s.id}-${qi.key}" ${quality[qi.key]?'checked':''} onchange="saveQuality('${s.id}','${qi.key}',this.checked)">
+              <label for="q-${s.id}-${qi.key}">${qi.label}</label>
+            </div>`).join('')}
+          <div class="quality-item" style="grid-column:1/-1">
+            <label style="margin:0;flex-shrink:0;min-width:100px">Citation count (approx):</label>
+            <input type="number" style="width:80px;font-size:12px;padding:3px 6px" value="${quality.citCount||''}" placeholder="0" onblur="saveQuality('${s.id}','citCount',this.value)">
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-green btn-sm" onclick="markUserConfirmed('${s.id}')">🟡 Mark as User-Confirmed</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CITATIONS -->
+    <div class="section-divider"></div>
+    <div class="collapsible-header" onclick="toggleCollapsible('cits-${s.id}')">
+      <h3>Generated Citations</h3>
+      <span class="collapsible-arrow" id="arrow-cits-${s.id}">▶</span>
+    </div>
+    <div class="collapsible-body hidden" id="cits-${s.id}">
+      <div style="padding:10px 0">
+        ${Object.entries(cits).map(([fmt,text])=>`
+          <div class="citation-format">
+            <div class="citation-format-header">
+              <span class="citation-format-name">${fmt}</span>
+              <div style="display:flex;gap:6px">
+                <button class="btn-copy" data-payload="${encodeURIComponent(text)}" data-label="${fmt} citation" onclick="copyTextFromAttr(this)">Copy</button>
+                <button class="btn-copy" data-sourceid="${s.id}" data-fmt="${fmt}" data-text="${encodeURIComponent(text)}" onclick="saveCitationFromAttr(this)">Save</button>
+                <button class="btn-copy" data-sourceid="${s.id}" data-fmt="${fmt}" data-text="${encodeURIComponent(text)}" onclick="openAIVerifyModalFromAttr(this)">Verify</button>
+              </div>
+            </div>
+            <div class="citation-text">${esc(text)}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function markUserConfirmed(sourceId){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  s.verificationStatus='user-confirmed'; p.modified=now();
+  addTimeline(currentProjectId,`Source manually confirmed: ${s.title||'source'}`);
+  saveData(); toast('Source marked as user-confirmed','info'); renderSourcesTab();
+}
+
+function toggleCollapsible(id){
+  const el=document.getElementById(id); const arrow=document.getElementById('arrow-'+id); if(!el) return;
+  el.classList.toggle('hidden'); if(arrow) arrow.classList.toggle('open');
+}
+
+async function addAttachments(sourceId, input){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  if(!s.attachments) s.attachments=[];
+  const files=Array.from(input.files);
+
+  for (const file of files) {
+    const caption = file.name;
+    const isPdf = file.type==='application/pdf';
+
+    // Try Firebase Storage
+    if (fbStorage && !localMode && currentUser) {
+      const path=`attachments/${sourceId}/${Date.now()}_${file.name}`;
+      toast('Uploading to Firebase Storage…','info');
+      const url = await uploadFileToStorage(file, path);
+      if (url) {
+        s.attachments.push({url, caption, type:isPdf?'pdf':'image', storagePath:path, created:now()});
+        continue;
+      }
+    }
+    // Fallback: base64 local
+    const reader=new FileReader();
+    await new Promise(res=>{ reader.onload=e=>{s.attachments.push({data:e.target.result,caption,type:isPdf?'pdf':'image',created:now()});res();};reader.readAsDataURL(file);});
+  }
+
+  p.modified=now();
+  addTimeline(currentProjectId,`Attachment added for: ${s.title||'source'}`);
+  saveData(); input.value=''; renderSourcesTab();
+}
+
+function delAttachment(sourceId,idx){
+  if(!confirm('Remove this attachment?')) return;
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  if(!s.attachments) s.attachments=s.pdfImages||[];
+  s.attachments.splice(idx,1); p.modified=now(); saveData(); renderSourcesTab();
+}
+
+function saveSourceField(sourceId,field,value){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  s[field]=value; p.modified=now(); saveData();
+}
+
+function saveQuality(sourceId,key,value){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  if(!s.quality) s.quality={};
+  s.quality[key]=value===true||value==='true'?true:value===false||value==='false'?false:value;
+  p.modified=now(); saveData();
+}
+
+function openFieldToggleModal(sourceId){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  const toggles=s.fieldToggles||{};
+  const fields=[{key:'abstract',label:'Abstract'},{key:'myNotes',label:'My Notes'},{key:'keyFindings',label:'Key Findings'},{key:'methodology',label:'Methodology'},{key:'limitations',label:'Limitations'},{key:'relatedPapers',label:'Related Papers'}];
+  openModal('Field Toggles',`<p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Show or hide fields. Hidden fields retain their data.</p>
+    ${fields.map(f=>`<div class="toggle-row"><span class="toggle-label">${f.label}</span><label class="toggle"><input type="checkbox" ${toggles[f.key]!==false?'checked':''} onchange="setFieldToggle('${sourceId}','${f.key}',this.checked)"><span class="toggle-slider"></span></label></div>`).join('')}`,
+  `<button class="btn btn-primary" onclick="closeModal();renderSourcesTab()">Done</button>`);
+}
+function setFieldToggle(sourceId,field,val){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  if(!s.fieldToggles) s.fieldToggles={}; s.fieldToggles[field]=val; saveData();
+}
+
+function saveCitationToProject(sourceId,fmt,text){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  if(!p.citations) p.citations=[];
+  if(p.citations.find(c=>c.sourceId===sourceId&&c.format===fmt)){toast('Citation already saved','info');return;}
+  p.citations.push({id:uid(),sourceId,sourceTitle:s.title,format:fmt,text,doi:s.doi||'',notes:'',created:now()});
+  p.modified=now(); addTimeline(currentProjectId,`Citation saved: ${s.title||'source'} — ${fmt}`);
+  saveData(); toast(`${fmt} citation saved`);
+}
+
+/* ═══════════════════════════════════════════
+   ADD / EDIT SOURCE MODAL (with DOI auto-fetch)
+   ═══════════════════════════════════════════ */
+function openAddSourceModal(){
+  window._pendingMeta = null; // ← FIX: reset pending meta
+  openModal('Add Source', buildSourceForm(), `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveNewSource()">Add Source</button>`, true);
+}
+
+function openEditSourceModal(sourceId){
+  window._pendingMeta = null; // ← FIX: reset pending meta
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  openModal('Edit Source', buildSourceForm(s), `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditSource('${sourceId}')">Save Changes</button>`, true);
+}
+
+function buildSourceForm(s){
+  const types=SOURCE_TYPES.map(t=>`<option value="${t.key}" ${s&&s.type===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const authorVal=s?(s.authorsSingle||s.authors||''):'';
+  return `
+    <!-- AUTO-FETCH BAR -->
+    <div class="form-group">
+      <label>Auto-Fetch from DOI or Paper URL</label>
+      <div class="fetch-bar">
+        <input class="fetch-input" id="sf-fetch-input" placeholder="e.g. 10.1016/j.cell.2025.01.001 or https://doi.org/…">
+        <button class="btn btn-primary btn-sm" onclick="doAutoFetch()">⬇ Auto-Fetch Metadata</button>
+      </div>
+      <div id="fetch-status" style="font-size:11px;color:var(--text-muted)"></div>
+    </div>
+
+    <div class="form-group"><label>Title *</label><input id="sf-title" value="${esc(s?s.title||'':'')}"></div>
+
+    <!-- AUTHORS as structured list -->
+    <div class="form-group">
+      <label>Authors (one per line, or semicolon-separated — Last, First)</label>
+      <textarea id="sf-authors" rows="2" placeholder="Smith, J.; Jones, A. R.; Lee, P.">${esc(authorVal)}</textarea>
+    </div>
+
+    <div class="grid-2">
+      <div class="form-group"><label>Publication Year</label><input id="sf-year" type="number" value="${esc(s?s.year||'':'')}"></div>
+      <div class="form-group"><label>Source Type</label><select id="sf-type">${types}</select></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Journal Name</label><input id="sf-journal" value="${esc(s?s.journal||'':'')}"></div>
+      <div class="form-group"><label>Publisher</label><input id="sf-publisher" value="${esc(s?s.publisher||'':'')}"></div>
+    </div>
+    <div class="grid-3">
+      <div class="form-group"><label>Volume</label><input id="sf-volume" value="${esc(s?s.volume||''  :'')}"></div>
+      <div class="form-group"><label>Issue</label><input id="sf-issue" value="${esc(s?s.issue||'':'')}"></div>
+      <div class="form-group"><label>Page Range</label><input id="sf-pages" value="${esc(s?s.pages||'':'')}"></div>
+    </div>
+    <div class="form-group"><label>DOI (e.g. 10.1016/j.cell.2025.01.001)</label><input id="sf-doi" value="${esc(s?s.doi||'':'')}"></div>
+    <div class="form-group"><label>Original Source URL</label><input id="sf-sourceUrl" value="${esc(s?s.sourceUrl||s.url||'':'')}"></div>
+    <div class="form-group"><label>Canonical URL</label><input id="sf-canonicalUrl" value="${esc(s?s.canonicalUrl||'':'')}"></div>
+    <div class="form-group"><label>Open-Access PDF File URL</label><input id="sf-pdfUrl" value="${esc(s?s.pdfUrl||'':'')}"></div>
+    <div class="form-group"><label>Abstract</label><textarea id="sf-abstract" rows="3">${esc(s?s.abstract||'':'')}</textarea></div>
+    <div class="form-group"><label>Edition / Location</label><input id="sf-edition" value="${esc(s?s.edition||'':'')}"></div>
+  `;
+}
+
+async function doAutoFetch(){
+  const input=document.getElementById('sf-fetch-input').value.trim();
+  if(!input){toast('Enter a DOI or URL first','error');return;}
+  const status=document.getElementById('fetch-status');
+  status.innerHTML='<span class="fetch-spinning">⏳</span> Querying Crossref & OpenAlex…';
+  const meta=await fetchMetadataFromDOI(input);
+  if(!meta){status.textContent='❌ No metadata found. Try a different DOI or enter details manually.';return;}
+  // Populate form
+  if(meta.title) document.getElementById('sf-title').value=meta.title;
+  if(meta.authors) document.getElementById('sf-authors').value=meta.authors;
+  if(meta.year) document.getElementById('sf-year').value=meta.year;
+  if(meta.type){const sel=document.getElementById('sf-type');sel.value=meta.type;}
+  if(meta.journal) document.getElementById('sf-journal').value=meta.journal;
+  if(meta.publisher) document.getElementById('sf-publisher').value=meta.publisher;
+  if(meta.volume) document.getElementById('sf-volume').value=meta.volume;
+  if(meta.issue) document.getElementById('sf-issue').value=meta.issue;
+  if(meta.pages) document.getElementById('sf-pages').value=meta.pages;
+  if(meta.doi) document.getElementById('sf-doi').value=meta.doi;
+  if(meta.abstract) document.getElementById('sf-abstract').value=meta.abstract;
+  if(meta.pdfUrl) document.getElementById('sf-pdfUrl').value=meta.pdfUrl;
+  status.innerHTML=`<span style="color:var(--green)">✓ Metadata fetched from ${meta.fetchedFrom}</span>`;
+  // store fetch context for new source
+  window._pendingMeta=meta;
+}
+
+function collectSourceForm(){
+  return {
+    title:        document.getElementById('sf-title').value.trim(),
+    authors:      document.getElementById('sf-authors').value.trim(),
+    authorsSingle:document.getElementById('sf-authors').value.trim(),
+    year:         document.getElementById('sf-year').value.trim(),
+    type:         document.getElementById('sf-type').value,
+    journal:      document.getElementById('sf-journal').value.trim(),
+    publisher:    document.getElementById('sf-publisher').value.trim(),
+    volume:       document.getElementById('sf-volume').value.trim(),
+    issue:        document.getElementById('sf-issue').value.trim(),
+    pages:        document.getElementById('sf-pages').value.trim(),
+    doi:          (document.getElementById('sf-doi').value.trim()).replace(/^https?:\/\/doi\.org\//,''),
+    sourceUrl:    document.getElementById('sf-sourceUrl').value.trim(),
+    canonicalUrl: document.getElementById('sf-canonicalUrl').value.trim(),
+    pdfUrl:       document.getElementById('sf-pdfUrl').value.trim(),
+    abstract:     document.getElementById('sf-abstract').value.trim(),
+    edition:      document.getElementById('sf-edition').value.trim(),
+    verificationStatus: window._pendingMeta ? 'auto-verified' : 'unverified',
+    fetchedFrom:  window._pendingMeta ? window._pendingMeta.fetchedFrom : undefined,
+  };
+}
+
+function saveNewSource(){
+  const data=collectSourceForm();
+  if(!data.title){toast('Title is required','error');return;}
+  const p=getProject(currentProjectId);
+  const s={id:uid(),...data,quality:{},attachments:[],fieldToggles:{},created:now()};
+  if(!p.sources) p.sources=[];
+  p.sources.push(s); p.modified=now();
+  addTimeline(currentProjectId,`Source added: ${data.title}${data.doi?` (DOI: ${data.doi})`:''}${data.verificationStatus==='auto-verified'?' — Auto-verified via API':''}`);
+  saveData(); closeModal(); toast(`Source added: ${data.title}`);
+  window._pendingMeta=null; currentSourceId=s.id; renderSourcesTab();
+}
+
+function saveEditSource(sourceId){
+  const data=collectSourceForm();
+  if(!data.title){toast('Title is required','error');return;}
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  const prev=s.verificationStatus;
+  Object.assign(s,data);
+  if(prev==='auto-verified') s.verificationStatus='auto-verified'; // preserve if unchanged
+  p.modified=now();
+  addTimeline(currentProjectId,`Source edited: ${data.title}`);
+  saveData(); closeModal(); toast('Source updated'); window._pendingMeta=null; renderSourcesTab();
+}
+
+function deleteSource(sourceId){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  if(!confirm(`Delete source "${s.title}"?`)) return;
+  p.sources=p.sources.filter(x=>x.id!==sourceId); p.modified=now(); saveData(); toast('Source deleted');
+  if(currentSourceId===sourceId) currentSourceId=null; renderSourcesTab();
+}
+
+/* ═══════════════════════════════════════════
+   AI VERIFY MODAL
+   ═══════════════════════════════════════════ */
+function buildVerifyPayload(s, fmt, citText){
+  const meta=`TITLE: ${s.title||'—'}
+AUTHORS: ${s.authorsSingle||s.authors||'—'}
+YEAR: ${s.year||'n.d.'}
+JOURNAL/PUBLISHER: ${s.journal||s.publisher||'—'}
+VOLUME: ${s.volume||'—'} | ISSUE: ${s.issue||'—'} | PAGES: ${s.pages||'—'}
+DOI: ${s.doi?`https://doi.org/${s.doi}`:'—'}
+SOURCE URL: ${s.sourceUrl||s.canonicalUrl||'—'}
+VERIFICATION STATUS: ${s.verificationStatus||'unverified'}`;
+
+  return `You are an expert academic citation checker. Please verify the following ${fmt} citation against academic standards.
+
+═══ SOURCE METADATA ═══
+${meta}
+
+═══ CITATION TO VERIFY ═══
+${citText}
+
+═══ 7-POINT VERIFICATION CHECKLIST ═══
+1. SOURCE EXISTENCE — Does this source appear to be a real, published, verifiable work?
+2. METADATA MATCH — Do author names, year, volume, issue, pages match the formatted citation?
+3. ${fmt} FORMAT RULES — Is every element correctly ordered, punctuated, and formatted per the latest ${fmt} guidelines?
+4. TRACKING / CHATBOT URLS — Does the citation contain any AI chatbot or tracking URLs (e.g. chatgpt.com, bard.google.com, perplexity.ai)? Flag and remove.
+5. DOI VALIDITY — Is the DOI formatted correctly and does it resolve to the correct work?
+6. AUTHOR FORMAT — Are all author names correctly formatted for ${fmt} (including et al. rules for 3+ authors)?
+7. MISSING FIELDS — Are any required fields missing or incomplete for this source type?
+
+Please provide:
+A) A verdict on each checklist point (✓ Pass / ✗ Fail / ⚠ Warning)
+B) The corrected citation if any errors are found
+C) A confidence rating (High / Medium / Low) that this source is real and correctly cited`;
+}
+
+function openAIVerifyModal(sourceId){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  const cits=generateCitations(s);
+  const fmtOpts=Object.keys(cits).map(f=>`<option value="${f}">${f}</option>`).join('');
+  openModal('🤖 AI Citation Verification',`
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Choose a format, then copy the structured verification prompt to paste into any AI tool, or click a button to open one directly.</p>
+    <div class="form-group"><label>Citation Format to Verify</label>
+      <select id="verify-fmt" onchange="updateVerifyPreview('${sourceId}')">${fmtOpts}</select></div>
+    <div id="verify-preview">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.6;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-word" id="verify-prompt-text"></div>
+    </div>
+    <div style="margin-top:12px">
+      <h3 style="font-size:13px;margin-bottom:8px">7-Point Checklist Preview</h3>
+      <ul class="checklist">
+        <li>Source existence — Is this a real, published, verifiable work?</li>
+        <li>Metadata match — Authors, year, volume, issue, pages match?</li>
+        <li>Format rules — Correctly ordered and punctuated per style guide?</li>
+        <li>Tracking / chatbot URLs — No AI or tracker URLs present?</li>
+        <li>DOI validity — Correctly formatted and resolves to the work?</li>
+        <li>Author format — Names correctly formatted (et al. rules applied)?</li>
+        <li>Missing fields — No required fields absent or incomplete?</li>
+      </ul>
+    </div>
+    <div class="ai-btns">
+      <button class="btn btn-primary btn-sm" onclick="copyVerifyPrompt('${sourceId}')">📋 Copy Full Prompt</button>
+      <button class="ai-btn" onclick="openAIWithPrompt('${sourceId}','https://chatgpt.com')">🤖 ChatGPT</button>
+      <button class="ai-btn" onclick="openAIWithPrompt('${sourceId}','https://gemini.google.com')">✨ Gemini</button>
+      <button class="ai-btn" onclick="openAIWithPrompt('${sourceId}','https://chat.deepseek.com')">🌊 DeepSeek</button>
+      <button class="ai-btn" onclick="openAIWithPrompt('${sourceId}','https://grok.com')">⚡ Grok</button>
+      <button class="ai-btn" onclick="openAIWithPrompt('${sourceId}','https://claude.ai')">🌙 Claude</button>
+    </div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Close</button>`,true);
+  updateVerifyPreview(sourceId);
+}
+
+function openAIVerifyModalFmt(sourceId, fmt, text){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  const payload=buildVerifyPayload(s,fmt,text);
+  openModal('🤖 Verify with AI',`
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Copy this prompt and paste it into an AI tool, or click a button to open one directly.</p>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;font-family:var(--mono);font-size:11px;line-height:1.6;max-height:250px;overflow-y:auto;white-space:pre-wrap;word-break:break-word">${esc(payload)}</div>
+    <div class="ai-btns mt-12">
+      <button class="btn btn-primary btn-sm" data-payload="${encodeURIComponent(payload)}" data-label="Verification prompt" onclick="copyTextFromAttr(this)">📋 Copy Prompt</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://chatgpt.com')">🤖 ChatGPT</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://gemini.google.com')">✨ Gemini</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://chat.deepseek.com')">🌊 DeepSeek</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://grok.com')">⚡ Grok</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://claude.ai')">🌙 Claude</button>
+    </div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Close</button>`,true);
+}
+
+function updateVerifyPreview(sourceId){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  const fmt=document.getElementById('verify-fmt')?.value; if(!fmt) return;
+  const cits=generateCitations(s);
+  const payload=buildVerifyPayload(s,fmt,cits[fmt]||'');
+  const el=document.getElementById('verify-prompt-text');
+  if(el) el.textContent=payload;
+}
+
+function copyVerifyPrompt(sourceId){
+  const p=getProject(currentProjectId); const s=getSource(p,sourceId); if(!s) return;
+  const fmt=document.getElementById('verify-fmt')?.value||'APA 7th';
+  const cits=generateCitations(s);
+  copyText(buildVerifyPayload(s,fmt,cits[fmt]||''),'Verification prompt');
+}
+
+function openAIWithPrompt(sourceId, url){
+  copyVerifyPrompt(sourceId);
+  window.open(url,'_blank');
+}
+
+/* ═══════════════════════════════════════════
+   CITATION GENERATION (hardened)
+   ═══════════════════════════════════════════ */
+function parseAuthorsArray(str){
+  if(!str) return [];
+  return str.split(/[;\n]+/).map(s=>s.trim()).filter(Boolean);
+}
+
+function formatAuthorsAPA(str, forceEtAl=false){
+  const parts=parseAuthorsArray(str);
+  if(!parts.length) return 'Unknown Author';
+  if(parts.length>20){
+    // APA 7th: first 19, ellipsis, last
+    const first=parts.slice(0,19).map(normalizeAuthorAPA);
+    return first.join(', ')+', … '+normalizeAuthorAPA(parts[parts.length-1]);
+  }
+  if(parts.length>1 && forceEtAl) return normalizeAuthorAPA(parts[0])+' et al.';
+  return parts.map(normalizeAuthorAPA).join(', ');
+}
+
+function normalizeAuthorAPA(name){
+  name=name.trim();
+  // If already "Last, F." format
+  if(name.includes(',')) {
+    const [last,...rest]=name.split(',');
+    const initials=rest.join('').trim().split(/\s+/).map(w=>w[0]?.toUpperCase()+'.').join(' ');
+    return `${last.trim()}, ${initials}`;
+  }
+  // "First Last" → "Last, F."
+  const words=name.split(/\s+/);
+  if(words.length<2) return name;
+  const last=words[words.length-1];
+  const initials=words.slice(0,-1).map(w=>w[0]?.toUpperCase()+'.').join(' ');
+  return `${last}, ${initials}`;
+}
+
+function formatAuthorsMLA(str){
+  const parts=parseAuthorsArray(str);
+  if(!parts.length) return 'Unknown Author';
+  if(parts.length>2) return normalizeMLA(parts[0])+', et al.';
+  if(parts.length===2) return normalizeMLA(parts[0])+', and '+normalizeMLA2(parts[1]);
+  return normalizeMLA(parts[0]);
+}
+function normalizeMLA(name){
+  if(name.includes(',')) return name.trim();
+  const words=name.trim().split(/\s+/);
+  if(words.length<2) return name;
+  return `${words[words.length-1]}, ${words.slice(0,-1).join(' ')}`;
+}
+function normalizeMLA2(name){
+  if(name.includes(',')) { const [l,...f]=name.split(','); return `${f.join(',').trim()} ${l.trim()}`; }
+  return name.trim();
+}
+
+function formatAuthorsChicago(str){
+  const parts=parseAuthorsArray(str);
+  if(!parts.length) return 'Unknown Author';
+  if(parts.length>10) return normalizeMLA(parts[0])+' et al.';
+  if(parts.length===1) return normalizeMLA(parts[0]);
+  const last=parts[parts.length-1];
+  return parts.slice(0,-1).map(normalizeMLA).join(', ')+', and '+normalizeMLA2(last);
+}
+
+function formatAuthorsHarvard(str){ return formatAuthorsAPA(str); }
+
+function formatAuthorsVancouver(str){
+  const parts=parseAuthorsArray(str);
+  if(!parts.length) return 'Unknown Author';
+  const fmt=p=>{
+    if(p.includes(',')){ const [l,...f]=p.split(','); const ini=f.join('').trim().split(/\s+/).map(w=>w[0]?.toUpperCase()).join(''); return `${l.trim()} ${ini}`; }
+    const ws=p.trim().split(/\s+/); const last=ws[ws.length-1]; const ini=ws.slice(0,-1).map(w=>w[0]?.toUpperCase()).join(''); return `${last} ${ini}`;
+  };
+  if(parts.length>6) return parts.slice(0,6).map(fmt).join(', ')+' et al.';
+  return parts.map(fmt).join(', ');
+}
+
+function formatAuthorsIEEE(str){
+  const parts=parseAuthorsArray(str);
+  if(!parts.length) return 'Unknown Author';
+  const fmt=p=>{
+    if(p.includes(',')){ const [l,...f]=p.split(','); const ini=f.join('').trim().split(/\s+/).map(w=>w[0]?.toUpperCase()+'.').join(' '); return `${ini} ${l.trim()}`; }
+    const ws=p.trim().split(/\s+/); const last=ws[ws.length-1]; const ini=ws.slice(0,-1).map(w=>w[0]?.toUpperCase()+'.').join(' '); return `${ini} ${last}`;
+  };
+  if(parts.length>6) return parts.slice(0,6).map(fmt).join(', ')+' et al.';
+  if(parts.length===1) return fmt(parts[0]);
+  return parts.slice(0,-1).map(fmt).join(', ')+' and '+fmt(parts[parts.length-1]);
+}
+
+function sanitizeURL(url){
+  if(!url) return '';
+  // Remove known AI/tracker domains
+  const badDomains=['chatgpt.com','bard.google.com','gemini.google.com','perplexity.ai','chat.openai.com','grok.com','claude.ai','chat.deepseek.com'];
+  try {
+    const u=new URL(url);
+    if(badDomains.some(d=>u.hostname.includes(d))) return ''; // strip chatbot URLs
+  } catch(e){}
+  return url;
+}
+
+function buildDOIPart(s){
+  if(s.doi) return ` https://doi.org/${s.doi}`;
+  const url=sanitizeURL(s.sourceUrl||s.canonicalUrl||'');
+  if(url) return ` ${url}`;
+  return '';
+}
+
+function generateCitations(s){
+  const authors=s.authorsSingle||s.authors||'Unknown Author';
+  const t=s.title||'Untitled';
+  const y=s.year||'n.d.';
+  const pub=s.publisher||'';
+  const jour=s.journal||s.publisher||'';
+  const vol=s.volume||'';
+  const iss=s.issue||'';
+  const pp=s.pages||'';
+  const ed=s.edition||'';
+  const doiPart=buildDOIPart(s);
+
+  return {
+    'APA 7th':    buildAPA(authors,t,y,jour,vol,iss,pp,doiPart,ed,s.type),
+    'MLA 9th':    buildMLA(authors,t,y,jour,vol,iss,pp,doiPart,ed,s.type),
+    'Chicago 17th':buildChicago(authors,t,y,jour,pub,vol,iss,pp,doiPart,ed,s.type),
+    'Harvard':    buildHarvard(authors,t,y,jour,vol,iss,pp,doiPart,ed,s.type),
+    'Vancouver':  buildVancouver(authors,t,y,jour,vol,iss,pp,doiPart,s.type),
+    'IEEE':       buildIEEE(authors,t,y,jour,vol,iss,pp,doiPart,s.type),
+  };
+}
+
+function buildAPA(authors,t,y,jour,vol,iss,pp,doi,ed,type){
+  const a=formatAuthorsAPA(authors);
+  let c=`${a} (${y}). ${t}.`;
+  if(type==='book'){
+    if(ed) c+=` (${ed} ed.).`;
+    if(jour) c+=` ${jour}.`;
+  } else if(type==='chapter'){
+    c+=` In ${jour}`;
+    if(pp) c+=` (pp. ${pp})`;
+    c+='.';
+  } else {
+    if(jour) c+=` <i>${jour}</i>`;
+    if(vol) c+=`, <i>${vol}</i>`;
+    if(iss) c+=`(${iss})`;
+    if(pp) c+=`, ${pp}`;
+    c+='.';
+  }
+  if(doi) c+=doi;
+  return c.replace(/<[^>]+>/g,''); // strip italics tags for plain text
+}
+function buildMLA(authors,t,y,jour,vol,iss,pp,doi,ed,type){
+  const a=formatAuthorsMLA(authors);
+  let c=`${a}. "${t}."`;
+  if(jour) c+=` ${jour},`;
+  if(vol) c+=` vol. ${vol},`;
+  if(iss) c+=` no. ${iss},`;
+  c+=` ${y}`;
+  if(pp) c+=`, pp. ${pp}`;
+  c+='.';
+  if(doi) c+=` ${doi.trim()}.`;
+  return c;
+}
+function buildChicago(authors,t,y,jour,pub,vol,iss,pp,doi,ed,type){
+  const a=formatAuthorsChicago(authors);
+  let c=`${a}.`;
+  if(type==='book'||type==='dissertation'){
+    c+=` "${t}."`;
+    if(ed) c+=` ${ed} ed.`;
+    if(pub) c+=` ${pub},`;
+    c+=` ${y}.`;
+  } else {
+    c+=` "${t}." ${jour}`;
+    if(vol) c+=` ${vol}`;
+    if(iss) c+=`, no. ${iss}`;
+    c+=` (${y})`;
+    if(pp) c+=`: ${pp}`;
+    c+='.';
+  }
+  if(doi) c+=` ${doi.trim()}.`;
+  return c;
+}
+function buildHarvard(authors,t,y,jour,vol,iss,pp,doi,ed,type){
+  const a=formatAuthorsHarvard(authors);
+  let c=`${a} (${y}) '${t}'`;
+  if(jour) c+=`, ${jour}`;
+  if(vol) c+=`, vol. ${vol}`;
+  if(iss) c+=`, no. ${iss}`;
+  if(pp) c+=`, pp. ${pp}`;
+  c+='.';
+  if(doi) c+=` Available at:${doi}.`;
+  return c;
+}
+function buildVancouver(authors,t,y,jour,vol,iss,pp,doi,type){
+  const a=formatAuthorsVancouver(authors);
+  let c=`${a}. ${t}. ${jour}. ${y}`;
+  if(vol) c+=`;${vol}`;
+  if(iss) c+=`(${iss})`;
+  if(pp) c+=`:${pp}`;
+  c+='.';
+  if(doi) c+=` Available from:${doi}`;
+  return c;
+}
+function buildIEEE(authors,t,y,jour,vol,iss,pp,doi,type){
+  const a=formatAuthorsIEEE(authors);
+  let c=`${a}, "${t}," ${jour},`;
+  if(vol) c+=` vol. ${vol},`;
+  if(iss) c+=` no. ${iss},`;
+  if(pp) c+=` pp. ${pp},`;
+  c+=` ${y}.`;
+  if(doi) c+=` [Online]. Available:${doi}`;
+  return c;
+}
+
+/* ── In-text citation helper ── */
+function buildInText(s, page=''){
+  const parts=parseAuthorsArray(s.authorsSingle||s.authors||'');
+  let auth='Unknown';
+  if(parts.length===1) auth=parts[0].includes(',')?parts[0].split(',')[0].trim():parts[0].split(/\s+/).pop();
+  else if(parts.length===2){ const a=parts[0].includes(',')?parts[0].split(',')[0].trim():parts[0].split(/\s+/).pop(); const b=parts[1].includes(',')?parts[1].split(',')[0].trim():parts[1].split(/\s+/).pop(); auth=`${a} & ${b}`; }
+  else if(parts.length>2){ auth=(parts[0].includes(',')?parts[0].split(',')[0].trim():parts[0].split(/\s+/).pop())+' et al.'; }
+  return `(${auth}, ${s.year||'n.d.'}${page?`, p. ${page}`:''})`
+}
+
+/* ═══════════════════════════════════════════
+   CITATIONS TAB
+   ═══════════════════════════════════════════ */
+function renderCitationsTab(){
+  const p=getProject(currentProjectId); const cits=p.citations||[];
+  const formats=['All','APA 7th','MLA 9th','Chicago 17th','Harvard','Vancouver','IEEE'];
+  const el=document.getElementById('subtab-content');
+  el.innerHTML=`
+    <div class="row center mb-16" style="gap:8px;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">
+        ${formats.map(f=>`<button class="btn btn-ghost btn-sm ${f==='All'?'active':''}" onclick="filterCitations('${f}',this)">${f}</button>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="openAddManualCitModal()">+ Add Manual</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportBibTeX()">Export BibTeX</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportMarkdown()">Export Markdown</button>
+        <button class="btn btn-primary btn-sm" onclick="exportJSON()">Export JSON</button>
+      </div>
+    </div>
+    <div id="cit-list">${renderCitList(cits)}</div>`;
+}
+
+function renderCitList(cits){
+  if(!cits.length) return `<div class="empty-state"><div class="empty-icon">🔖</div><div class="empty-title">No saved citations</div><div class="empty-sub">Generate citations from Sources and save them here.</div></div>`;
+  return cits.map(c=>`
+    <div class="cit-item">
+      <div class="cit-item-header">
+        <span class="badge badge-blue">${esc(c.format)}</span>
+        <span style="font-size:12px;color:var(--text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 8px">${esc(c.sourceTitle||'Manual')}</span>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn-copy" data-payload="${encodeURIComponent(c.text)}" data-label="Citation" onclick="copyTextFromAttr(this)">Copy</button>
+          <button class="btn-copy" data-citation="${encodeURIComponent(JSON.stringify(c))}" onclick="openCitVerifyFromAttr(this)">Verify</button>
+          <button class="btn-icon btn-sm" onclick="editCitModal('${c.id}')">✏️</button>
+          <button class="btn-icon btn-sm" onclick="deleteCit('${c.id}')">🗑️</button>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:12px;line-height:1.6;word-break:break-word">${esc(c.text)}</div>
+      ${c.doi?`<div style="font-size:11px;color:var(--text-dim);margin-top:4px">DOI: <a href="https://doi.org/${esc(c.doi)}" target="_blank">${esc(c.doi)}</a></div>`:''}
+      ${c.notes?`<div style="font-size:12px;color:var(--text-muted);margin-top:6px;padding:6px;background:var(--bg);border-radius:4px">${esc(c.notes)}</div>`:''}
+    </div>`).join('');
+}
+
+function openCitVerifyModal(c){
+  const payload=`Please verify this ${c.format} citation:\n\n${c.text}\n\nCheck: (1) source existence (2) metadata accuracy (3) format rules (4) no chatbot/tracker URLs (5) correct DOI format (6) author name formatting (7) no missing required fields. Return the corrected citation if needed.`;
+  openModal('Verify Citation with AI',`
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;font-family:var(--mono);font-size:11px;line-height:1.6;max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-word">${esc(payload)}</div>
+    <div class="ai-btns mt-12">
+      <button class="btn btn-primary btn-sm" data-payload="${encodeURIComponent(payload)}" data-label="Verify prompt" onclick="copyTextFromAttr(this)">📋 Copy Prompt</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://chatgpt.com')">🤖 ChatGPT</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://claude.ai')">🌙 Claude</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://gemini.google.com')">✨ Gemini</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://chat.deepseek.com')">🌊 DeepSeek</button>
+      <button class="ai-btn" data-payload="${encodeURIComponent(payload)}" onclick="copyAndOpenFromAttr(this,'https://grok.com')">⚡ Grok</button>
+    </div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Close</button>`,true);
+}
+
+function filterCitations(fmt,btn){
+  document.querySelectorAll('#subtab-content .btn-ghost').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const p=getProject(currentProjectId); const cits=p.citations||[];
+  const filtered=fmt==='All'?cits:cits.filter(c=>c.format===fmt);
+  const list=document.getElementById('cit-list'); if(!list) return;
+  list.innerHTML=renderCitList(filtered);
+}
+
+function openAddManualCitModal(){
+  const fmts=['APA 7th','MLA 9th','Chicago 17th','Harvard','Vancouver','IEEE'].map(f=>`<option value="${f}">${f}</option>`).join('');
+  openModal('Add Manual Citation',`
+    <div class="form-group"><label>Format</label><select id="mc-fmt">${fmts}</select></div>
+    <div class="form-group"><label>Citation Text *</label><textarea id="mc-text" rows="4" placeholder="Paste your citation here…"></textarea></div>
+    <div class="form-group"><label>DOI (optional)</label><input id="mc-doi" placeholder="10.xxxx/..."></div>
+    <div class="form-group"><label>Notes</label><input id="mc-notes" placeholder="Any notes about this citation…"></div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveManualCit()">Save Citation</button>`);
+}
+
+function saveManualCit(){
+  const text=document.getElementById('mc-text').value.trim();
+  if(!text){toast('Citation text required','error');return;}
+  const p=getProject(currentProjectId); if(!p.citations) p.citations=[];
+  p.citations.push({id:uid(),sourceId:null,sourceTitle:'Manual',format:document.getElementById('mc-fmt').value,text,doi:document.getElementById('mc-doi').value.trim(),notes:document.getElementById('mc-notes').value.trim(),created:now()});
+  p.modified=now(); addTimeline(currentProjectId,'Manual citation added'); saveData(); closeModal(); toast('Citation saved'); renderCitationsTab();
+}
+
+function editCitModal(citId){
+  const p=getProject(currentProjectId); const c=(p.citations||[]).find(x=>x.id===citId); if(!c) return;
+  const fmts=['APA 7th','MLA 9th','Chicago 17th','Harvard','Vancouver','IEEE'].map(f=>`<option value="${f}" ${c.format===f?'selected':''}>${f}</option>`).join('');
+  openModal('Edit Citation',`
+    <div class="form-group"><label>Format</label><select id="mc-fmt">${fmts}</select></div>
+    <div class="form-group"><label>Citation Text</label><textarea id="mc-text" rows="4">${esc(c.text)}</textarea></div>
+    <div class="form-group"><label>DOI</label><input id="mc-doi" value="${esc(c.doi||'')}"></div>
+    <div class="form-group"><label>Notes</label><input id="mc-notes" value="${esc(c.notes||'')}"></div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditCit('${citId}')">Save</button>`);
+}
+function saveEditCit(citId){
+  const p=getProject(currentProjectId); const c=(p.citations||[]).find(x=>x.id===citId); if(!c) return;
+  c.format=document.getElementById('mc-fmt').value;
+  c.text=document.getElementById('mc-text').value.trim();
+  c.doi=document.getElementById('mc-doi').value.trim();
+  c.notes=document.getElementById('mc-notes').value.trim();
+  p.modified=now(); saveData(); closeModal(); toast('Citation updated'); renderCitationsTab();
+}
+function deleteCit(citId){
+  if(!confirm('Delete this citation?')) return;
+  const p=getProject(currentProjectId);
+  p.citations=(p.citations||[]).filter(c=>c.id!==citId);
+  p.modified=now(); saveData(); toast('Citation deleted'); renderCitationsTab();
+}
+
+/* ── Exports ── */
+function exportMarkdown(){
+  const p=getProject(currentProjectId); const cits=p.citations||[];
+  if(!cits.length){toast('No citations to export','error');return;}
+  const fmtGroups={};
+  cits.forEach(c=>{ if(!fmtGroups[c.format]) fmtGroups[c.format]=[]; fmtGroups[c.format].push(c); });
+  let md=`# ${p.name} — Bibliography\n\n_Generated by ResearchVault on ${new Date().toLocaleDateString()}_\n\n`;
+  Object.entries(fmtGroups).forEach(([fmt,cs])=>{
+    md+=`## ${fmt}\n\n`;
+    cs.forEach((c,i)=>{ md+=`${i+1}. ${c.text}${c.doi?`  \nDOI: https://doi.org/${c.doi}`:''}\n\n`; });
+  });
+  downloadText(md,`${p.name.replace(/\s+/g,'_')}_bibliography.md`,'text/markdown');
+  toast('Markdown exported');
+}
+
+function exportBibTeX(){
+  const p=getProject(currentProjectId); const sources=p.sources||[];
+  if(!sources.length){toast('No sources to export','error');return;}
+  const bib=sources.map(s=>{
+    const key=(s.authorsSingle||s.authors||'unknown').split(/[,;\s]+/)[0].replace(/[^a-zA-Z]/g,'')+s.year||'nd';
+    return `@article{${key},\n  title={${s.title||''}},\n  author={${(s.authorsSingle||s.authors||'').replace(/;/g,' and ')}},\n  year={${s.year||''}},\n  journal={${s.journal||s.publisher||''}},\n  volume={${s.volume||''}},\n  number={${s.issue||''}},\n  pages={${s.pages||''}},\n  doi={${s.doi||''}}\n}`;
+  }).join('\n\n');
+  downloadText(bib,`${p.name.replace(/\s+/g,'_')}_sources.bib`,'text/plain');
+  toast('BibTeX exported');
+}
+
+function exportJSON(){
+  const p=getProject(currentProjectId);
+  const json=JSON.stringify({project:p.name,sources:p.sources,citations:p.citations,evidence:p.evidence,exportDate:now()},null,2);
+  downloadText(json,`${p.name.replace(/\s+/g,'_')}_backup.json`,'application/json');
+  toast('JSON backup exported');
+}
+
+function downloadText(text,filename,type){
+  const a=document.createElement('a');
+  a.href=`data:${type};charset=utf-8,`+encodeURIComponent(text);
+  a.download=filename; a.click();
+}
+
+/* ═══════════════════════════════════════════
+   EVIDENCE TAB (Evidence Cards)
+   ═══════════════════════════════════════════ */
+function renderEvidenceTab(){
+  const p=getProject(currentProjectId); const evidence=p.evidence||[];
+  const el=document.getElementById('subtab-content');
+  const sourceOpts=(p.sources||[]).map(s=>`<option value="${s.id}">${esc(s.title||'Untitled')}</option>`).join('');
+
+  el.innerHTML=`
+    <div class="row center mb-16">
+      <h3 style="flex:1">Evidence Cards <span style="font-size:12px;color:var(--text-muted);font-weight:400">(${evidence.length})</span></h3>
+      <button class="btn btn-primary btn-sm" onclick="openAddEvidenceModal()">+ Add Evidence Card</button>
+    </div>
+    ${!evidence.length?`<div class="empty-state"><div class="empty-icon">💬</div><div class="empty-title">No evidence cards yet</div><div class="empty-sub">Add direct quotes, key claims, and evidence linked to specific sources with auto-generated in-text citations.</div><button class="btn btn-primary" onclick="openAddEvidenceModal()">+ Add Evidence Card</button></div>`
+    :evidence.map(ev=>{
+      const src=(p.sources||[]).find(s=>s.id===ev.sourceId);
+      const intext=src?buildInText(src,ev.page):'(Author, n.d.)';
+      return `<div class="evidence-card">
+        <div class="evidence-card-header">
+          ${src?`<span class="badge badge-blue">${esc(src.title?.slice(0,40))||'Source'}</span>`:'<span class="badge badge-red">No source linked</span>'}
+          ${ev.page?`<span class="badge badge-purple">p. ${esc(ev.page)}</span>`:''}
+          ${ev.section?`<span class="badge" style="background:var(--card-hover);color:var(--text-muted);border:1px solid var(--border)">${esc(ev.section)}</span>`:''}
+          <div style="margin-left:auto;display:flex;gap:4px">
+            <button class="btn-icon btn-sm" onclick="openEditEvidenceModal('${ev.id}')">✏️</button>
+            <button class="btn-icon btn-sm" onclick="deleteEvidence('${ev.id}')">🗑️</button>
+          </div>
+        </div>
+        ${ev.quote?`<div class="evidence-quote">"${esc(ev.quote)}"</div>`:''}
+        <div class="evidence-intext">${esc(intext)}</div>
+        <div class="evidence-meta">
+          ${ev.page?`<span>📄 Page ${esc(ev.page)}</span>`:''}
+          ${ev.section?`<span>§ ${esc(ev.section)}</span>`:''}
+          <span>📅 ${fmtDate(ev.created)}</span>
+        </div>
+        ${ev.note?`<div style="margin-top:8px;font-size:12px;color:var(--text-muted);background:var(--bg);padding:8px;border-radius:var(--r-sm);border-left:2px solid var(--accent-dim)"><b style="color:var(--accent);font-size:11px">Researcher Note:</b><br>${esc(ev.note)}</div>`:''}
+      </div>`;
+    }).join('')}`;
+}
+
+function buildEvidenceForm(ev){
+  const p=getProject(currentProjectId);
+  const sourceOpts=`<option value="">— No source linked —</option>`+(p.sources||[]).map(s=>`<option value="${s.id}" ${ev&&ev.sourceId===s.id?'selected':''}>${esc(s.title||'Untitled')}</option>`).join('');
+  return `
+    <div class="form-group"><label>Linked Source</label><select id="ev-source">${sourceOpts}</select></div>
+    <div class="form-group"><label>Direct Quote (verbatim text)</label><textarea id="ev-quote" rows="4" placeholder="Enter the exact quote here…">${esc(ev?ev.quote||'':'')}</textarea></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Page Number(s) (e.g. 17 or 14–17)</label><input id="ev-page" value="${esc(ev?ev.page||'':'')}" placeholder="e.g. 47"></div>
+      <div class="form-group"><label>Section / Heading</label><input id="ev-section" value="${esc(ev?ev.section||'':'')}" placeholder="e.g. Section 4.2: Methodology"></div>
+    </div>
+    <div class="form-group"><label>Researcher's Note / Analysis</label><textarea id="ev-note" rows="3" placeholder="Your interpretation, how this relates to your argument…">${esc(ev?ev.note||'':'')}</textarea></div>
+    <div id="ev-intext-preview" style="margin-top:8px;font-size:12px;color:var(--text-muted)"></div>`;
+}
+
+function openAddEvidenceModal(){
+  openModal('Add Evidence Card', buildEvidenceForm(null),
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveNewEvidence()">Add Card</button>`, true);
+  setTimeout(updateEvidencePreview, 50);
+  document.getElementById('ev-source')?.addEventListener('change',updateEvidencePreview);
+  document.getElementById('ev-page')?.addEventListener('input',updateEvidencePreview);
+}
+
+function openEditEvidenceModal(evId){
+  const p=getProject(currentProjectId); const ev=(p.evidence||[]).find(e=>e.id===evId); if(!ev) return;
+  openModal('Edit Evidence Card', buildEvidenceForm(ev),
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditEvidence('${evId}')">Save</button>`, true);
+  setTimeout(updateEvidencePreview, 50);
+  document.getElementById('ev-source')?.addEventListener('change',updateEvidencePreview);
+  document.getElementById('ev-page')?.addEventListener('input',updateEvidencePreview);
+}
+
+function updateEvidencePreview(){
+  const sourceId=document.getElementById('ev-source')?.value;
+  const page=document.getElementById('ev-page')?.value||'';
+  const p=getProject(currentProjectId); const src=p&&sourceId?(p.sources||[]).find(s=>s.id===sourceId):null;
+  const intext=src?buildInText(src,page):'(Author, Year)';
+  const prev=document.getElementById('ev-intext-preview');
+  if(prev) prev.innerHTML=`<b style="color:var(--text-dim)">In-text preview:</b> <span style="font-family:var(--mono);color:var(--accent)">${esc(intext)}</span>`;
+}
+
+function collectEvidence(){
+  return {
+    sourceId: document.getElementById('ev-source').value||null,
+    quote:    document.getElementById('ev-quote').value.trim(),
+    page:     document.getElementById('ev-page').value.trim(),
+    section:  document.getElementById('ev-section').value.trim(),
+    note:     document.getElementById('ev-note').value.trim(),
+  };
+}
+
+function saveNewEvidence(){
+  const data=collectEvidence();
+  if(!data.quote&&!data.note){toast('Add a quote or note','error');return;}
+  const p=getProject(currentProjectId); if(!p.evidence) p.evidence=[];
+  p.evidence.push({id:uid(),...data,created:now()});
+  p.modified=now(); addTimeline(currentProjectId,'Evidence card added'); saveData(); closeModal(); toast('Evidence card added'); renderEvidenceTab();
+}
+
+function saveEditEvidence(evId){
+  const data=collectEvidence();
+  const p=getProject(currentProjectId); const ev=(p.evidence||[]).find(e=>e.id===evId); if(!ev) return;
+  Object.assign(ev,data); p.modified=now(); saveData(); closeModal(); toast('Evidence card updated'); renderEvidenceTab();
+}
+
+function deleteEvidence(evId){
+  if(!confirm('Delete this evidence card?')) return;
+  const p=getProject(currentProjectId);
+  p.evidence=(p.evidence||[]).filter(e=>e.id!==evId); p.modified=now(); saveData(); renderEvidenceTab();
+}
+
+/* ═══════════════════════════════════════════
+   NOTES TAB
+   ═══════════════════════════════════════════ */
+function renderNotesTab(){
+  const p=getProject(currentProjectId); const notes=p.notes||[];
+  const sources=(p.sources||[]).map(s=>`<option value="${s.id}">${esc(s.title)}</option>`).join('');
+  const el=document.getElementById('subtab-content');
+  el.innerHTML=`
+    <div class="card mb-16">
+      <h3 class="mb-12">Add Note</h3>
+      <div class="form-group"><label>Attach to Source (optional)</label><select id="note-source"><option value="">— Project-level note —</option>${sources}</select></div>
+      <div class="note-toolbar">
+        <button onclick="execCmd('bold')"><b>B</b></button>
+        <button onclick="execCmd('italic')"><i>I</i></button>
+        <button onclick="execCmd('underline')"><u>U</u></button>
+        <button onclick="execCmd('insertUnorderedList')">• List</button>
+      </div>
+      <div class="note-editor" id="note-editor" contenteditable="true" data-placeholder="Type your note here…"></div>
+      <div style="margin-top:8px;text-align:right"><button class="btn btn-primary btn-sm" onclick="saveNote()">Save Note</button></div>
+    </div>
+    <h3 class="mb-12">Saved Notes <span style="font-size:12px;color:var(--text-muted);font-weight:400">(${notes.length})</span></h3>
+    ${!notes.length?'<div style="color:var(--text-muted);font-size:13px">No notes yet.</div>'
+    :notes.map(n=>{
+      const src=n.sourceId?(p.sources||[]).find(s=>s.id===n.sourceId):null;
+      return `<div class="note-item">
+        <div class="note-item-header">
+          <span class="note-item-source">${src?esc(src.title):'📁 Project Note'}</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span class="note-item-date">${fmtDate(n.created)}</span>
+            <button class="btn-icon btn-sm" onclick="deleteNote('${n.id}')">🗑️</button>
+          </div>
+        </div>
+        <div class="note-item-body">${n.html}</div>
+      </div>`;
+    }).join('')}`;
+}
+
+function execCmd(cmd){ document.execCommand(cmd,false,null); document.getElementById('note-editor').focus(); }
+
+function saveNote(){
+  const html=document.getElementById('note-editor').innerHTML.trim();
+  if(!html||html==='<br>'){toast('Note is empty','error');return;}
+  const p=getProject(currentProjectId); if(!p.notes) p.notes=[];
+  p.notes.unshift({id:uid(),sourceId:document.getElementById('note-source').value||null,html,created:now()});
+  p.modified=now(); addTimeline(currentProjectId,'Note added'); saveData(); toast('Note saved'); renderNotesTab();
+}
+
+function deleteNote(noteId){
+  if(!confirm('Delete this note?')) return;
+  const p=getProject(currentProjectId); p.notes=(p.notes||[]).filter(n=>n.id!==noteId);
+  p.modified=now(); saveData(); renderNotesTab();
+}
+
+/* ═══════════════════════════════════════════
+   TIMELINE TAB
+   ═══════════════════════════════════════════ */
+function renderTimelineTab(){
+  const p=getProject(currentProjectId); const timeline=[...(p.timeline||[])].reverse();
+  const el=document.getElementById('subtab-content');
+  const groups={};
+  timeline.forEach(e=>{ const dg=fmtDateGroup(e.ts); if(!groups[dg]) groups[dg]=[]; groups[dg].push(e); });
+
+  el.innerHTML=`
+    <div class="row center mb-16">
+      <h3 style="flex:1">Research Timeline <span style="font-size:12px;color:var(--text-muted);font-weight:400">(${timeline.length} entries)</span></h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="addManualTimeline()">+ Manual Entry</button>
+        <button class="btn btn-danger btn-sm" onclick="clearTimeline()">Clear All</button>
+      </div>
+    </div>
+    ${!timeline.length?`<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">No timeline entries</div><div class="empty-sub">Actions you take in this project are logged here automatically.</div></div>`
+    :Object.entries(groups).map(([date,entries])=>`
+      <div class="timeline-date-group">
+        <div class="timeline-date-label">${date}</div>
+        ${entries.map(e=>`<div class="timeline-entry"><div class="timeline-time">${fmtTime(e.ts)}</div><div class="timeline-dot"></div><div class="timeline-action">${esc(e.action)}</div></div>`).join('')}
+      </div>`).join('')}`;
+}
+
+function addManualTimeline(){
+  openModal('Add Timeline Entry',`<div class="form-group"><label>Entry</label><input id="tl-entry" placeholder="What did you do?"></div>`,
+  `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveManualTimeline()">Add</button>`);
+}
+function saveManualTimeline(){
+  const entry=document.getElementById('tl-entry').value.trim();
+  if(!entry){toast('Entry required','error');return;}
+  addTimeline(currentProjectId,entry); closeModal(); toast('Entry added'); renderTimelineTab();
+}
+function clearTimeline(){
+  if(!confirm('Clear all timeline entries?')) return;
+  const p=getProject(currentProjectId); p.timeline=[]; saveData(); renderTimelineTab();
+}
+
+/* ═══════════════════════════════════════════
+   TOOLS VIEW
+   ═══════════════════════════════════════════ */
+function renderToolsView(){
+  document.getElementById('topbar-title').textContent='Research Tools';
+  document.getElementById('topbar-sub').textContent='Academic databases, citation generators, and AI tools';
+  document.getElementById('topbar-actions').innerHTML=`<button class="btn btn-primary btn-sm" onclick="openAddToolModal()">+ Add Link</button>`;
+
+  const tools=APP.tools||[];
+  const pinned=tools.filter(t=>t.pinned);
+  const categories=[
+    {key:'search',label:'Academic Search Engines',emoji:'🔬'},
+    {key:'citation',label:'Citation Generators',emoji:'✍️'},
+    {key:'ai',label:'AI Tools (citation checking)',emoji:'🤖'},
+    {key:'custom',label:'My Custom Links',emoji:'📌'},
+  ];
+
+  let html='';
+  if(pinned.length){
+    html+=`<div class="tools-section-title">⭐ Pinned Favourites</div>`;
+    html+=pinned.map(t=>renderToolCard(t,tools)).join('');
+  }
+  categories.forEach(cat=>{
+    const items=tools.filter(t=>(t.category===cat.key||cat.key==='custom'&&t.custom)&&!t.pinned);
+    if(!items.length&&cat.key!=='custom') return;
+    html+=`<div class="tools-section-title">${cat.emoji} ${cat.label}</div>`;
+    if(!items.length) html+=`<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">No custom links yet.</div>`;
+    html+=items.map(t=>renderToolCard(t,tools)).join('');
+  });
+
+  document.getElementById('main-content').innerHTML=`<div style="max-width:760px">${html}</div>`;
+}
+
+function renderToolCard(t,allTools){
+  const idx=allTools.findIndex(x=>x.id===t.id);
+  return `<div class="tool-card ${t.pinned?'pinned':''}">
+    <div class="tool-icon">${t.icon||'🔗'}</div>
+    <div class="tool-info">
+      <div class="tool-name">${esc(t.name)}</div>
+      <div class="tool-url">${esc(t.url)}</div>
+      ${t.category?`<div class="tool-tag">${esc(t.category)}</div>`:''}
+    </div>
+    <div class="tool-actions">
+      <button class="btn-icon" title="${t.pinned?'Unpin':'Pin to top'}" onclick="toggleToolPin('${t.id}')">${t.pinned?'⭐':'☆'}</button>
+      <button class="btn-icon" title="Move up" onclick="moveToolUp(${idx})" ${idx===0?'disabled':''}>↑</button>
+      <button class="btn-icon" title="Move down" onclick="moveToolDown(${idx})" ${idx===allTools.length-1?'disabled':''}>↓</button>
+      <button class="btn-icon" title="Edit" onclick="openEditToolModal('${t.id}')">✏️</button>
+      <a href="${esc(t.url)}" target="_blank" class="btn btn-primary btn-sm">Open ↗</a>
+      ${t.custom?`<button class="btn btn-danger btn-sm" onclick="deleteTool('${t.id}')">✕</button>`:''}
+    </div>
+  </div>`;
+}
+
+function toggleToolPin(id){
+  const t=(APP.tools||[]).find(x=>x.id===id); if(!t) return;
+  t.pinned=!t.pinned; saveData(); renderToolsView();
+}
+function moveToolUp(idx){
+  if(idx<=0) return;
+  [APP.tools[idx-1],APP.tools[idx]]=[APP.tools[idx],APP.tools[idx-1]];
+  saveData(); renderToolsView();
+}
+function moveToolDown(idx){
+  if(idx>=APP.tools.length-1) return;
+  [APP.tools[idx+1],APP.tools[idx]]=[APP.tools[idx],APP.tools[idx+1]];
+  saveData(); renderToolsView();
+}
+
+function openAddToolModal(){
+  const cats=[{key:'search',label:'Academic Search'},{key:'citation',label:'Citation Generator'},{key:'ai',label:'AI Tool'},{key:'custom',label:'Custom / Other'}].map(c=>`<option value="${c.key}">${c.label}</option>`).join('');
+  openModal('Add Custom Link',`
+    <div class="form-group"><label>Name *</label><input id="tl-name" placeholder="e.g. My University Library"></div>
+    <div class="form-group"><label>URL *</label><input id="tl-url" placeholder="https://…"></div>
+    <div class="form-group"><label>Category</label><select id="tl-cat">${cats}</select></div>
+    <div class="form-group"><label>Icon (emoji)</label><input id="tl-icon" placeholder="📚" maxlength="4" style="width:60px"></div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveTool()">Add Link</button>`);
+}
+
+function openEditToolModal(id){
+  const t=(APP.tools||[]).find(x=>x.id===id); if(!t) return;
+  const cats=[{key:'search',label:'Academic Search'},{key:'citation',label:'Citation Generator'},{key:'ai',label:'AI Tool'},{key:'custom',label:'Custom / Other'}].map(c=>`<option value="${c.key}" ${t.category===c.key?'selected':''}>${c.label}</option>`).join('');
+  openModal('Edit Tool',`
+    <div class="form-group"><label>Name</label><input id="tl-name" value="${esc(t.name)}"></div>
+    <div class="form-group"><label>URL</label><input id="tl-url" value="${esc(t.url)}"></div>
+    <div class="form-group"><label>Category</label><select id="tl-cat">${cats}</select></div>
+    <div class="form-group"><label>Icon (emoji)</label><input id="tl-icon" value="${esc(t.icon||'')}" maxlength="4" style="width:60px"></div>
+  `,`<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveEditTool('${id}')">Save</button>`);
+}
+
+function saveEditTool(id){
+  const t=(APP.tools||[]).find(x=>x.id===id); if(!t) return;
+  t.name=document.getElementById('tl-name').value.trim();
+  t.url=document.getElementById('tl-url').value.trim();
+  t.category=document.getElementById('tl-cat').value;
+  t.icon=document.getElementById('tl-icon').value||t.icon||'🔗';
+  saveData(); closeModal(); renderToolsView();
+}
+
+function saveTool(){
+  const name=document.getElementById('tl-name').value.trim();
+  const url=document.getElementById('tl-url').value.trim();
+  if(!name||!url){toast('Name and URL required','error');return;}
+  if(!APP.tools) APP.tools=[];
+  APP.tools.push({id:uid(),name,url,category:document.getElementById('tl-cat').value,icon:document.getElementById('tl-icon').value||'🔗',custom:true,pinned:false});
+  saveData(); closeModal(); toast('Link added'); renderToolsView();
+}
+
+function deleteTool(id){
+  if(!confirm('Remove this link?')) return;
+  APP.tools=(APP.tools||[]).filter(t=>t.id!==id); saveData(); renderToolsView();
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS VIEW
+   ═══════════════════════════════════════════ */
+function renderSettingsView(){
+  document.getElementById('topbar-title').textContent='Settings';
+  document.getElementById('topbar-sub').textContent='Data management, export, and account settings';
+  document.getElementById('topbar-actions').innerHTML='';
+  const sz=(JSON.stringify(APP).length/1024).toFixed(1);
+  const syncLine=localMode?'<b style="color:var(--amber)">⚠ Local-only mode</b> — data is not synced to Firebase. Sign in to enable sync.':currentUser?`<b style="color:var(--green)">☁ Synced to Firebase</b> (${currentUser.email})`:'Not connected.';
+
+  document.getElementById('main-content').innerHTML=`
+    <div style="max-width:580px">
+      <div class="card mb-12">
+        <h3 class="mb-8">Firebase Sync</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">${syncLine}</p>
+        <p style="font-size:12px;color:var(--text-dim)">Configure your Firebase project by editing the <code style="font-family:var(--mono);background:var(--bg);padding:2px 5px;border-radius:3px">FIREBASE_CONFIG</code> object at the top of this file's script section. Get credentials from <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a>.</p>
+        ${localMode&&!FIREBASE_AVAILABLE?`<div style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="location.reload()">↺ Reload to Sign In</button></div>`:''}
+      </div>
+      <div class="card mb-12">
+        <h3 class="mb-8">Data Management</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Local cache size: <b>${sz} KB</b></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="exportAllJSON()">⬇ Export All Data (JSON)</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">⬆ Import Data (JSON)</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+        </div>
+      </div>
+      <div class="card mb-12">
+        <h3 class="mb-8">Danger Zone</h3>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">These actions cannot be undone.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-danger" onclick="clearAllData()">🗑 Clear All Local Data</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="mb-8">About ResearchVault v2</h3>
+        <p style="font-size:13px;color:var(--text-muted);line-height:1.7">
+          Academic research organiser with Firebase sync, automatic metadata fetching via Crossref & OpenAlex APIs, hardened citation formatting (APA 7th, MLA 9th, Chicago 17th, Harvard, Vancouver, IEEE), AI-powered citation verification workflow (copy-prompt for ChatGPT, Gemini, DeepSeek, Grok, Claude), structured evidence cards with in-text citation preview, and one-click exports to Markdown, BibTeX, and JSON.
+          <br><br>
+          <b>No paid AI APIs used.</b> All AI features use copy-to-clipboard workflows.<br>
+          Deployable as a single HTML file on GitHub Pages with zero backend.
+        </p>
+      </div>
+    </div>`;
+}
+
+function exportAllJSON(){
+  const json=JSON.stringify(APP,null,2);
+  downloadText(json,'researchvault_backup_'+new Date().toISOString().slice(0,10)+'.json','application/json');
+  toast('Data exported');
+}
+
+function importData(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try {
+      const data=JSON.parse(e.target.result);
+      if(!data.projects){toast('Invalid backup file','error');return;}
+      if(!confirm(`Import ${data.projects.length} projects? Existing projects with matching IDs will be skipped.`)) return;
+      data.projects.forEach(p=>{ if(!APP.projects.find(ep=>ep.id===p.id)) APP.projects.push(p); });
+      if(data.tools) data.tools.forEach(t=>{ if(!(APP.tools||[]).find(et=>et.id===t.id)) APP.tools.push(t); });
+      saveData(); toast('Import successful'); renderSidebar(); showView('projects');
+    } catch(err){ toast('Failed to parse backup file','error'); }
+  };
+  reader.readAsText(file); input.value='';
+}
+
+function clearAllData(){
+  if(!confirm('Delete ALL local data? This cannot be undone.')) return;
+  if(!confirm('Final confirmation: clear everything?')) return;
+  APP={projects:[],tools:getDefaultTools()}; saveData(); toast('Data cleared');
+  currentProjectId=null; showView('projects');
+}
+
+/* ═══════════════════════════════════════════
+   BOOT
+   ═══════════════════════════════════════════ */
+function bootApp(){
+  renderSidebar();
+  showView('projects');
+  if(currentUser) updateUserUI(currentUser);
+  else {
+    document.getElementById('user-name').textContent='Local Mode';
+    document.getElementById('user-email').textContent='No sync';
+    document.getElementById('sync-status').textContent='📴 Local only';
+  }
+}
+
+// If Firebase unavailable, show the auth screen which has a local-mode link
+// If Firebase available, onAuthStateChanged handles boot
+window._pendingMeta = null;
+</script>
+</body>
+</html>
